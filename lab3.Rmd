@@ -1,0 +1,1071 @@
+---
+title: "lab3"
+output: html_document
+date: "2026-03-11"
+---
+
+# Lab3
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+
+```{r}
+required_pkgs <- c(
+  "tidyverse", "janitor", "skimr", "naniar", "GGally",
+  "corrplot", "e1071", "factoextra", "cluster", "car", "scales"
+)
+
+new_pkgs <- required_pkgs[!(required_pkgs %in% installed.packages()[, "Package"])]
+if(length(new_pkgs) > 0) install.packages(new_pkgs)
+
+invisible(lapply(required_pkgs, library, character.only = TRUE))
+
+theme_set(theme_minimal(base_size = 12))
+options(scipen = 999)
+set.seed(123)
+
+tmp_env <- new.env()
+objs <- load("listings.RData", envir = tmp_env)
+
+df_candidates <- objs[sapply(objs, function(nm) {
+  x <- tmp_env[[nm]]
+  is.data.frame(x) || inherits(x, c("tbl_df", "data.table"))
+})]
+
+stopifnot(length(df_candidates) > 0)
+
+sizes <- sapply(df_candidates, function(nm) {
+  x <- as.data.frame(tmp_env[[nm]])
+  nrow(x) * ncol(x)
+})
+
+raw_listings <- as_tibble(tmp_env[[df_candidates[which.max(sizes)]]]) %>%
+  janitor::clean_names()
+
+glimpse(raw_listings)
+
+parse_money <- function(x) {
+  if (is.numeric(x)) return(x)
+  readr::parse_number(as.character(x))
+}
+
+parse_percent01 <- function(x) {
+  if (is.numeric(x)) return(x)
+  readr::parse_number(as.character(x)) / 100
+}
+
+bool_to_factor <- function(x) {
+  x_chr <- tolower(as.character(x))
+  case_when(
+    x_chr %in% c("t", "true", "yes", "1") ~ "Yes",
+    x_chr %in% c("f", "false", "no", "0") ~ "No",
+    TRUE ~ NA_character_
+  ) %>% factor(levels = c("No", "Yes"))
+}
+
+safe_skew <- function(x) {
+  x <- x[!is.na(x)]
+  if (length(x) < 3) return(NA_real_)
+  e1071::skewness(x, type = 2)
+}
+
+count_outliers_iqr <- function(x) {
+  x <- x[!is.na(x)]
+  if (length(x) < 4) return(NA_integer_)
+  q1 <- quantile(x, 0.25, na.rm = TRUE)
+  q3 <- quantile(x, 0.75, na.rm = TRUE)
+  iqr <- q3 - q1
+  sum(x < (q1 - 1.5 * iqr) | x > (q3 + 1.5 * iqr))
+}
+
+summarise_numeric <- function(data, vars) {
+  map_dfr(vars, function(v) {
+    x <- data[[v]]
+    x2 <- x[!is.na(x)]
+    
+    if (length(x2) == 0) {
+      return(tibble(
+        variable = v, n = 0, mean = NA_real_, median = NA_real_,
+        sd = NA_real_, min = NA_real_, p01 = NA_real_, p25 = NA_real_,
+        p75 = NA_real_, p99 = NA_real_, max = NA_real_,
+        skew = NA_real_, outliers_iqr = NA_integer_
+      ))
+    }
+    
+    tibble(
+      variable = v,
+      n = length(x2),
+      mean = mean(x2),
+      median = median(x2),
+      sd = sd(x2),
+      min = min(x2),
+      p01 = quantile(x2, 0.01),
+      p25 = quantile(x2, 0.25),
+      p75 = quantile(x2, 0.75),
+      p99 = quantile(x2, 0.99),
+      max = max(x2),
+      skew = safe_skew(x2),
+      outliers_iqr = count_outliers_iqr(x2)
+    )
+  })
+}
+```
+
+
+# Descripción general del dataset
+
+
+```{r}
+listings <- raw_listings
+
+# Conversión básica de formatos
+if ("price" %in% names(listings)) {
+  listings <- listings %>% mutate(price = parse_money(price))
+}
+
+percent_cols <- intersect(c("host_response_rate", "host_acceptance_rate"), names(listings))
+if (length(percent_cols) > 0) {
+  listings <- listings %>% mutate(across(all_of(percent_cols), parse_percent01))
+}
+
+date_cols <- intersect(
+  c("last_scraped", "calendar_last_scraped", "host_since", "first_review", "last_review"),
+  names(listings)
+)
+if (length(date_cols) > 0) {
+  listings <- listings %>% mutate(across(all_of(date_cols), ~ suppressWarnings(as.Date(.x))))
+}
+
+if ("bathrooms_text" %in% names(listings)) {
+  listings <- listings %>%
+    mutate(
+      bathrooms_text_num = readr::parse_number(bathrooms_text),
+      bathrooms = if ("bathrooms" %in% names(listings)) coalesce(bathrooms, bathrooms_text_num) else bathrooms_text_num
+    )
+}
+
+# Detectar binarias t/f, yes/no, etc.
+bool_candidates <- names(listings)[sapply(listings, function(x) {
+  vals <- unique(tolower(as.character(stats::na.omit(x))))
+  length(vals) > 0 && all(vals %in% c("t", "f", "true", "false", "yes", "no", "0", "1"))
+})]
+
+if (length(bool_candidates) > 0) {
+  listings <- listings %>% mutate(across(all_of(bool_candidates), bool_to_factor))
+}
+
+# Algunas variables deberían tratarse como categóricas
+cat_code_cols <- intersect(
+  c("neighbourhood_cleansed", "neighbourhood_group_cleansed", "property_type", "room_type", "city"),
+  names(listings)
+)
+if (length(cat_code_cols) > 0) {
+  listings <- listings %>% mutate(across(all_of(cat_code_cols), as.factor))
+}
+
+dataset_overview <- tibble(
+  filas = nrow(listings),
+  columnas = ncol(listings),
+  variable_objetivo = "price"
+)
+
+dataset_overview
+```
+
+El conjunto de datos utilizado para el análisis exploratorio contiene 171,748 observaciones y 81 variables, por lo que se trata de una base suficientemente grande y rica para desarrollar un modelo predictivo. La variable objetivo seleccionada es price, ya que representa el precio del alojamiento y constituye la variable de interés del problema de predicción. En términos generales, la estructura del dataset combina variables numéricas, categóricas, fechas y campos de texto, lo cual permite explorar tanto características del alojamiento como atributos del anfitrión, disponibilidad, reseñas y ubicación
+
+
+# Calidad de datos y preprocesamiento
+
+
+```{r}
+quality_tbl <- tibble(
+  variable   = names(listings),
+  clase      = map_chr(listings, ~ class(.x)[1]),
+  n_missing  = map_int(listings, ~ sum(is.na(.x))),
+  pct_missing = map_dbl(listings, ~ mean(is.na(.x))),
+  n_unicos   = map_int(listings, ~ n_distinct(.x, na.rm = TRUE))
+) %>%
+  mutate(pct_unicos = n_unicos / nrow(listings)) %>%
+  arrange(desc(pct_missing), desc(pct_unicos))
+
+quality_tbl %>% slice_head(n = 30)
+```
+
+
+```{r}
+duplicate_rows <- sum(duplicated(listings))
+duplicate_id <- if ("id" %in% names(listings)) sum(duplicated(listings$id)) else NA_integer_
+
+tibble(
+  duplicados_fila = duplicate_rows,
+  duplicados_id = duplicate_id
+)
+```
+
+```{r}
+constant_cols <- quality_tbl %>%
+  filter(n_unicos <= 1 | pct_missing == 1) %>%
+  pull(variable)
+
+id_like_cols <- names(listings)[str_detect(names(listings), "(^id$|_id$|_url$|^url$|picture|thumbnail|scrape_id)")]
+
+text_like_cols <- intersect(
+  c("name", "description", "neighborhood_overview", "host_about",
+    "bathrooms_text", "listing_url", "host_url", "picture_url",
+    "host_picture_url", "host_thumbnail_url"),
+  names(listings)
+)
+
+high_card_cols <- quality_tbl %>%
+  filter(clase %in% c("character", "factor"), pct_unicos > 0.40) %>%
+  pull(variable)
+
+drop_candidates <- unique(c(
+  constant_cols,
+  id_like_cols,
+  text_like_cols,
+  high_card_cols
+))
+
+action_tbl <- tibble(variable = drop_candidates) %>%
+  mutate(
+    razon = case_when(
+      variable %in% constant_cols ~ "Constante o completamente vacía",
+      variable %in% id_like_cols ~ "ID / URL / imagen",
+      variable %in% text_like_cols ~ "Texto libre o columna no estructurada",
+      variable %in% high_card_cols ~ "Alta cardinalidad",
+      TRUE ~ "Revisar manualmente"
+    )
+  ) %>%
+  arrange(razon, variable)
+
+action_tbl
+```
+
+
+```{r}
+# Dataset para EDA/modelado inicial
+listings_clean <- listings %>%
+  select(-any_of(drop_candidates)) %>%
+  distinct()
+
+# Agregar log_price si aplica
+if ("price" %in% names(listings_clean)) {
+  listings_clean <- listings_clean %>%
+    mutate(log_price = if_else(price > 0, log(price), NA_real_))
+}
+
+glimpse(listings_clean)
+```
+
+En la etapa de preprocesamiento se identificó que varias variables requerían transformación de formato. En particular, price se encontraba originalmente como texto con símbolo monetario y fue convertida a formato numérico. De forma similar, las tasas de respuesta y aceptación del anfitrión fueron transformadas desde porcentajes a proporciones, mientras que variables temporales como host_since, last_review y calendar_last_scraped fueron convertidas a tipo fecha. También se generó una versión numérica de bathrooms_text, con el fin de complementar la variable bathrooms cuando fuera necesario. Durante este proceso aparecieron fallos de parseo asociados a valores como N/A en porcentajes y descripciones no estándar como “Half-bath” en baños, lo que sugiere que parte de la información original tenía formatos heterogéneos y debía tratarse con cautela.
+
+En cuanto a calidad de datos, no se detectaron filas duplicadas ni IDs duplicados, lo que indica consistencia estructural en los registros. Sin embargo, sí se observaron variables con una alta proporción de faltantes. Destaca el caso de price y estimated_revenue_l365d, ambas con 95,502 valores faltantes, equivalentes a aproximadamente 55.6% del total. También aparecen faltantes relevantes en neighbourhood_group_cleansed y en varias variables de calificaciones (review_scores_*). Por esta razón, el análisis posterior de la variable respuesta se realiza únicamente sobre observaciones con precio disponible. 
+
+
+Además, se eliminaron columnas consideradas poco útiles para un modelo predictivo inicial, especialmente variables tipo ID, URL, imágenes, texto libre y columnas constantes, ya que no aportan información directa o introducen ruido innecesario. Entre ellas se encuentran id, host_id, listing_url, picture_url, description, host_about, name y calendar_updated. Tras esta depuración y eliminación de duplicados, el dataset de trabajo quedó con 170,127 filas y 67 columnas, una estructura más adecuada para el EDA y para etapas posteriores de modelado
+
+
+# Análisis univariado
+
+## Numéricas
+
+```{r}
+num_vars <- listings_clean %>%
+  select(where(is.numeric)) %>%
+  names()
+
+numeric_summary <- summarise_numeric(listings_clean, num_vars) %>%
+  arrange(desc(outliers_iqr))
+
+numeric_summary
+```
+
+```{r}
+key_num <- intersect(
+  c("price", "accommodates", "bathrooms", "bedrooms", "beds",
+    "minimum_nights", "number_of_reviews", "review_scores_rating",
+    "availability_365", "estimated_occupancy_l365d", "estimated_revenue_l365d"),
+  names(listings_clean)
+)
+
+plot_sample <- listings_clean %>%
+  select(all_of(key_num)) %>%
+  slice_sample(n = min(50000, nrow(listings_clean)))
+
+plot_sample %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~ variable, scales = "free", ncol = 3) +
+  labs(title = "Histogramas de variables numéricas")
+```
+
+
+```{r}
+plot_sample %>%
+  pivot_longer(cols = everything(), names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot(outlier.alpha = 0.2) +
+  facet_wrap(~ variable, scales = "free", ncol = 3) +
+  coord_flip() +
+  theme(axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) +
+  labs(title = "Boxplots de variables numéricas")
+```
+El análisis univariado de las variables numéricas muestra que muchas de ellas presentan distribuciones claramente asimétricas y con presencia de valores extremos. Variables como number_of_reviews, host_listings_count, host_total_listings_count y varios conteos calculados de propiedades exhiben medianas bajas y máximos muy altos, lo que sugiere una fuerte concentración de observaciones en valores pequeños y una cola derecha larga. Esta situación es consistente con un mercado donde la mayoría de los anfitriones poseen pocas propiedades, mientras que un grupo reducido concentra una gran cantidad de anuncios. 
+
+En las gráficas de histogramas y boxplots también se observa que variables como accommodates, bedrooms, beds, minimum_nights y availability_365 presentan distribuciones no normales, con acumulación en pocos valores frecuentes y numerosos outliers. Esto sugiere que, de cara al modelo, convendrá evaluar transformaciones o tratamientos robustos para variables particularmente sesgadas. También se evidencia que las variables relacionadas con reseñas y ocupación no se distribuyen de forma homogénea, sino que presentan una fuerte concentración cerca de cero, algo esperable en plataformas donde muchos anuncios tienen poca actividad reciente.
+
+
+## Categóricas
+```{r}
+cat_vars <- listings_clean %>%
+  select(where(~ is.character(.x) || is.factor(.x))) %>%
+  names()
+
+categorical_summary <- map_dfr(cat_vars, function(v) {
+  x <- listings_clean[[v]]
+  tb <- sort(table(x, useNA = "ifany"), decreasing = TRUE)
+  
+  tibble(
+    variable = v,
+    n_levels = n_distinct(x, na.rm = TRUE),
+    top_1 = names(tb)[1],
+    freq_top_1 = as.integer(tb[1]),
+    pct_top_1 = as.numeric(tb[1]) / sum(tb),
+    rare_levels_lt_1pct = sum(prop.table(tb) < 0.01, na.rm = TRUE)
+  )
+}) %>%
+  arrange(desc(n_levels))
+
+categorical_summary
+```
+```{r}
+plot_top_bars <- function(var, top_n = 10) {
+  tmp <- listings_clean %>%
+    filter(!is.na(.data[[var]])) %>%
+    count(.data[[var]], sort = TRUE) %>%
+    slice_head(n = top_n)
+  
+  ggplot(tmp, aes(x = reorder(as.character(.data[[var]]), n), y = n)) +
+    geom_col() +
+    coord_flip() +
+    labs(
+      title = paste("Top", top_n, "categorías -", var),
+      x = var, y = "Frecuencia"
+    )
+}
+
+key_cat <- intersect(
+  c("city", "property_type", "room_type", "neighbourhood_cleansed",
+    "host_is_superhost", "instant_bookable"),
+  names(listings_clean)
+)
+
+walk(key_cat, ~ print(plot_top_bars(.x, top_n = 10)))
+```
+
+Las variables categóricas presentan distintos niveles de complejidad. Algunas son compactas y fáciles de interpretar, como room_type, instant_bookable o host_is_superhost, mientras que otras tienen cardinalidad extremadamente alta, como license, host_name, host_location, host_neighbourhood y neighbourhood_cleansed. Por ejemplo, license tiene más de 52 mil niveles, y host_name supera los 22 mil, lo que indica que estas variables no son convenientes para incorporarlas directamente en un modelo lineal sin un tratamiento adicional. 
+
+
+Entre las categorías dominantes, se observa que room_type está fuertemente concentrada en “Entire home/apt”, que representa alrededor del 74.5% de los registros. Asimismo, instant_bookable muestra predominio de la categoría “No”, y en host_is_superhost predominan los anfitriones que no son superhost. En la variable city aparecen 10 categorías, siendo las más frecuentes Los Angeles, New York y Hawaii, mientras que en property_type predominan tipos como Entire rental unit, Entire home y Entire condo. Estos resultados sugieren que la muestra está compuesta principalmente por propiedades completas y por mercados urbanos o turísticos de alta demanda.
+
+
+# Análisis de la variable respuesta: price
+```{r}
+price_summary <- summarise_numeric(listings_clean, "price")
+price_summary
+```
+```{r}
+tibble(
+  variable = c("price", "log_price"),
+  skew = c(
+    safe_skew(listings_clean$price),
+    safe_skew(listings_clean$log_price)
+  )
+)
+```
+
+```{r}
+listings_clean %>%
+  filter(!is.na(price)) %>%
+  slice_sample(n = min(50000, nrow(.))) %>%
+  ggplot(aes(x = price)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Distribución de price", x = "Price", y = "Frecuencia")
+```
+```{r}
+listings_clean %>%
+  filter(!is.na(price)) %>%
+  ggplot(aes(y = price)) +
+  geom_boxplot(outlier.alpha = 0.2) +
+  labs(title = "Boxplot de price", y = "Price")
+```
+```{r}
+listings_clean %>%
+  filter(!is.na(log_price)) %>%
+  slice_sample(n = min(50000, nrow(.))) %>%
+  ggplot(aes(x = log_price)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Distribución de log(price)", x = "log(price)", y = "Frecuencia")
+```
+```{r}
+price_sample <- listings_clean %>%
+  filter(!is.na(price)) %>%
+  pull(price)
+
+price_sample <- sample(price_sample, size = min(5000, length(price_sample)))
+
+qqnorm(price_sample, main = "QQ-plot de price")
+qqline(price_sample, col = 2)
+```
+```{r}
+logprice_sample <- listings_clean %>%
+  filter(!is.na(log_price)) %>%
+  pull(log_price)
+
+logprice_sample <- sample(logprice_sample, size = min(5000, length(logprice_sample)))
+
+qqnorm(logprice_sample, main = "QQ-plot de log(price)")
+qqline(logprice_sample, col = 2)
+```
+La variable objetivo price presenta una distribución fuertemente asimétrica a la derecha. Sobre las observaciones con precio disponible (75,426 registros), la media es 691, mientras que la mediana es 191, lo que revela una marcada influencia de valores extremos altos. Además, el precio mínimo observado es 8, el percentil 99 es 8,853 y el máximo alcanza 50,123, confirmando la existencia de alojamientos extraordinariamente caros en comparación con el grueso de la muestra. El coeficiente de asimetría de price es 10.6, lo que indica una distribución muy alejada de la normalidad. 
+
+
+Las gráficas del histograma, boxplot y QQ-plot refuerzan esta conclusión: la mayor parte de las propiedades se concentra en rangos bajos o medios de precio, mientras que un grupo reducido de observaciones extremadamente caras alarga la cola derecha de la distribución. Al aplicar la transformación log(price), la asimetría disminuye de 10.6 a 1.74, y la forma de la distribución mejora de manera considerable, acercándose mucho más a una forma aproximadamente simétrica. Por ello, desde el punto de vista exploratorio y de modelado, existe evidencia suficiente para considerar log(price) como una mejor alternativa para ajustar un modelo de regresión.
+
+
+# Relación de cada variable con el precio
+## Numéricas vs precio
+```{r}
+candidate_num <- intersect(
+  c("accommodates", "bathrooms", "bedrooms", "beds",
+    "minimum_nights", "maximum_nights",
+    "number_of_reviews", "number_of_reviews_ltm", "number_of_reviews_l30d",
+    "review_scores_rating", "review_scores_cleanliness",
+    "review_scores_location", "reviews_per_month",
+    "availability_30", "availability_60", "availability_90", "availability_365",
+    "estimated_occupancy_l365d", "estimated_revenue_l365d"),
+  names(listings_clean)
+)
+
+cor_price <- map_dfr(candidate_num, function(v) {
+  tmp <- listings_clean %>%
+    select(price, all_of(v)) %>%
+    drop_na()
+  
+  tibble(
+    variable = v,
+    pearson = cor(tmp$price, tmp[[v]], method = "pearson"),
+    spearman = cor(tmp$price, tmp[[v]], method = "spearman")
+  )
+}) %>%
+  arrange(desc(abs(spearman)))
+
+cor_price
+```
+```{r}
+top_num_price <- cor_price %>%
+  slice_max(order_by = abs(spearman), n = min(6, nrow(cor_price)), with_ties = FALSE) %>%
+  pull(variable)
+
+num_price_sample <- listings_clean %>%
+  select(price, all_of(top_num_price)) %>%
+  drop_na() %>%
+  slice_sample(n = min(30000, nrow(.)))
+
+num_price_sample %>%
+  pivot_longer(cols = -price, names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = value, y = price)) +
+  geom_point(alpha = 0.15) +
+  geom_smooth(method = "loess", se = FALSE, linewidth = 0.8) +
+  facet_wrap(~ variable, scales = "free_x", ncol = 3) +
+  labs(title = "Relación de variables numéricas con price")
+```
+El análisis de correlación entre variables numéricas y price muestra que las asociaciones más claras aparecen en variables vinculadas al tamaño y capacidad del alojamiento. En particular, las mayores correlaciones de Spearman corresponden a accommodates (0.596), bathrooms (0.522), beds (0.514) y bedrooms (0.508). Esto sugiere que, en términos generales, a mayor capacidad del alojamiento y mayor número de habitaciones o baños, mayor tiende a ser el precio. Estas variables aparecen como candidatas naturales para el modelo predictivo, tanto por su interpretación de negocio como por su asociación empírica con la variable respuesta.
+
+Por otro lado, variables relacionadas con reseñas y actividad reciente presentan asociaciones débiles o moderadas, e incluso negativas, como ocurre con reviews_per_month, number_of_reviews, number_of_reviews_ltm y estimated_occupancy_l365d. Una posible interpretación es que los alojamientos más caros no necesariamente son los más frecuentes o los más demandados dentro de la plataforma. Asimismo, el hecho de que varias correlaciones de Pearson sean bastante menores que las de Spearman sugiere que la relación entre precio y estas variables no es estrictamente lineal y está influida por la asimetría y los outliers del precio.
+
+También conviene notar que estimated_revenue_l365d muestra una relación positiva con price, pero esta variable debe manejarse con mucho cuidado en el modelado, ya que conceptualmente puede incorporar información muy cercana a la variable objetivo. En consecuencia, aunque su exploración es útil para entender el negocio, no sería recomendable mantenerla como predictor sin antes evaluar riesgo de fuga de información.
+
+## Categóricas vs precio
+```{r}
+candidate_cat <- intersect(
+  c("city", "property_type", "room_type", "neighbourhood_cleansed",
+    "host_is_superhost", "instant_bookable"),
+  names(listings_clean)
+)
+
+cat_price_summary <- map_dfr(candidate_cat, function(v) {
+  listings_clean %>%
+    filter(!is.na(price), !is.na(.data[[v]])) %>%
+    group_by(grupo = as.character(.data[[v]])) %>%
+    summarise(
+      n = n(),
+      mean_price = mean(price),
+      median_price = median(price),
+      .groups = "drop"
+    ) %>%
+    arrange(desc(n)) %>%
+    slice_head(n = 10) %>%
+    mutate(variable = v) %>%
+    relocate(variable)
+})
+
+cat_price_summary
+```
+
+```{r}
+plot_box_cat_price <- function(var, top_n = 10) {
+  top_levels <- listings_clean %>%
+    filter(!is.na(.data[[var]])) %>%
+    count(.data[[var]], sort = TRUE) %>%
+    slice_head(n = top_n) %>%
+    pull(1) %>%
+    as.character()
+  
+  tmp <- listings_clean %>%
+    filter(as.character(.data[[var]]) %in% top_levels, !is.na(price))
+  
+  ggplot(tmp, aes(x = forcats::fct_reorder(as.factor(.data[[var]]), price, .fun = median), y = price)) +
+    geom_boxplot(outlier.alpha = 0.15) +
+    coord_flip() +
+    labs(
+      title = paste("Price por", var, "(top", top_n, "categorías)"),
+      x = var, y = "Price"
+    )
+}
+
+walk(candidate_cat, ~ print(plot_box_cat_price(.x, top_n = 10)))
+```
+Las variables categóricas también muestran diferencias relevantes en los niveles de precio. En city, por ejemplo, se observan medianas y medias distintas entre mercados: Hawaii y Rhode Island presentan precios más altos que Austin, Texas o Washington, D.C., lo que sugiere un efecto importante de la localización geográfica sobre la variable respuesta. Este resultado es coherente con la idea de que el precio no depende únicamente de las características físicas del alojamiento, sino también del mercado local en el que compite. 
+
+En property_type, los alojamientos completos como Entire home y Entire condo muestran valores medianos superiores a los tipos compartidos o privados. De manera similar, en room_type se aprecia que Entire home/apt tiende a ubicarse por encima de Private room y Shared room, lo que confirma que el nivel de privacidad y uso exclusivo del espacio influye de manera importante en el precio. Estas diferencias hacen pensar que variables categóricas como city, property_type y room_type serán determinantes en el modelo final. 
+
+
+En cambio, para variables binarias como host_is_superhost e instant_bookable, las diferencias visuales parecen menos marcadas que en ubicación o tipo de propiedad. Aun así, pueden seguir siendo útiles como variables explicativas complementarias, especialmente si interactúan con otros atributos del anuncio. En conjunto, el análisis categórico muestra que existen segmentos de mercado con comportamientos de precio claramente diferenciados.
+
+# Correlación y multicolinealidad
+```{r}
+corr_vars <- intersect(
+  c("accommodates", "bathrooms", "bedrooms", "beds",
+    "minimum_nights", "maximum_nights",
+    "availability_30", "availability_60", "availability_90", "availability_365",
+    "number_of_reviews", "number_of_reviews_ltm", "reviews_per_month",
+    "review_scores_rating", "estimated_occupancy_l365d"),
+  names(listings_clean)
+)
+
+corr_df <- listings_clean %>%
+  select(all_of(corr_vars)) %>%
+  select(where(is.numeric))
+
+corr_mat <- cor(corr_df, use = "pairwise.complete.obs")
+
+corr_mat
+```
+```{r}
+corrplot::corrplot(
+  corr_mat,
+  method = "color",
+  type = "upper",
+  tl.cex = 0.8,
+  number.cex = 0.7
+)
+```
+```{r}
+high_corr_pairs <- as.data.frame(as.table(corr_mat)) %>%
+  filter(Var1 != Var2) %>%
+  mutate(abs_cor = abs(Freq)) %>%
+  arrange(desc(abs_cor)) %>%
+  filter(abs_cor >= 0.70) %>%
+  distinct(
+    par = map2_chr(Var1, Var2, ~ paste(sort(c(.x, .y)), collapse = " - ")),
+    .keep_all = TRUE
+  ) %>%
+  select(Var1, Var2, correlacion = Freq, abs_cor)
+
+high_corr_pairs
+```
+```{r}
+high_corr_pairs <- as.data.frame(as.table(corr_mat)) %>%
+  filter(Var1 != Var2) %>%
+  mutate(abs_cor = abs(Freq)) %>%
+  arrange(desc(abs_cor)) %>%
+  filter(abs_cor >= 0.70) %>%
+  distinct(
+    par = map2_chr(Var1, Var2, ~ paste(sort(c(.x, .y)), collapse = " - ")),
+    .keep_all = TRUE
+  ) %>%
+  select(Var1, Var2, correlacion = Freq, abs_cor)
+
+high_corr_pairs
+```
+```{r}
+vif_vars <- intersect(
+  c("accommodates", "bathrooms", "bedrooms", "beds",
+    "minimum_nights", "number_of_reviews",
+    "review_scores_rating", "availability_365"),
+  names(listings_clean)
+)
+
+if (length(vif_vars) >= 2) {
+  vif_df <- listings_clean %>%
+    select(price, all_of(vif_vars)) %>%
+    drop_na()
+  
+  if (nrow(vif_df) > 10000) {
+    vif_df <- vif_df %>% slice_sample(n = 10000)
+  }
+  
+  fit_vif <- lm(price ~ ., data = vif_df)
+  
+  vif_tbl <- tibble(
+    variable = names(car::vif(fit_vif)),
+    vif = as.numeric(car::vif(fit_vif))
+  ) %>%
+    arrange(desc(vif))
+  
+  vif_tbl
+}
+```
+La matriz de correlación entre variables numéricas revela bloques claros de variables redundantes. El primer bloque aparece en las variables de disponibilidad: availability_90 y availability_60 presentan una correlación de 0.971, mientras que availability_60 y availability_30 alcanzan 0.926. Esto indica que estas variables contienen información muy similar y, en un modelo predictivo, probablemente no sea necesario incluirlas simultáneamente. Un segundo bloque importante aparece en las variables de tamaño del alojamiento: beds y accommodates tienen correlación de 0.814, bedrooms y accommodates de 0.782, y beds y bedrooms de 0.764. Estas relaciones sugieren redundancia parcial entre características que describen la capacidad del alojamiento.
+
+También se observa una alta relación entre métricas de actividad o reseñas, particularmente entre reviews_per_month y number_of_reviews_ltm con una correlación de 0.872. En general, estos resultados muestran que varias variables capturan dimensiones similares del fenómeno, por lo que será importante seleccionar una representación parsimoniosa al construir el modelo. Desde el punto de vista del EDA, este hallazgo es útil porque permite justificar por qué algunas variables podrían excluirse o resumirse en etapas posteriores.
+
+El análisis de VIF confirma esta lectura. Los valores más altos corresponden a accommodates (5.26), bedrooms (4.60) y beds (4.37), mientras que el resto de variables se mantiene cerca de 1. Esto indica que la multicolinealidad presente es moderada, especialmente en las variables asociadas al tamaño del alojamiento, pero no necesariamente crítica en esta etapa. En consecuencia, para el modelo final será razonable evaluar si conviene conservar solo algunas de estas variables o aplicar criterios de selección para evitar redundancia y mejorar la interpretabilidad.
+
+
+# Análisis de grupos (clustering / segmentación)
+```{r}
+cluster_vars <- intersect(
+  c("accommodates",
+    "bathrooms",
+    "minimum_nights",
+    "number_of_reviews",
+    "review_scores_rating",
+    "availability_365"),
+  names(listings_clean)
+)
+
+cluster_vars
+```
+```{r}
+mode_stat <- function(x) {
+  x <- na.omit(x)
+  if (length(x) == 0) return(NA_character_)
+  names(sort(table(x), decreasing = TRUE))[1]
+}
+
+impute_median <- function(x) {
+  if (!is.numeric(x)) return(x)
+  x[is.na(x)] <- median(x, na.rm = TRUE)
+  x
+}
+
+cluster_base <- listings_clean %>%
+  select(any_of(c(cluster_vars, "price", "room_type", "property_type", "city")))
+
+cluster_num <- cluster_base %>%
+  select(all_of(cluster_vars)) %>%
+  mutate(across(everything(), impute_median))
+
+# Eliminar variables con varianza 0 si las hubiera
+zero_var_cols <- names(cluster_num)[sapply(cluster_num, function(x) sd(x, na.rm = TRUE) == 0)]
+cluster_num <- cluster_num %>% select(-any_of(zero_var_cols))
+
+cluster_vars_final <- names(cluster_num)
+
+# Escalamiento
+cluster_scaled_all <- scale(cluster_num)
+
+# Muestra para que kmeans no sea tan pesado
+set.seed(123)
+sample_n_clust <- min(30000, nrow(cluster_scaled_all))
+sample_idx <- sample(seq_len(nrow(cluster_scaled_all)), sample_n_clust)
+
+cluster_scaled_sample <- cluster_scaled_all[sample_idx, , drop = FALSE]
+cluster_sample_df <- cluster_base[sample_idx, ]
+
+dim(cluster_scaled_sample)
+```
+```{r}
+set.seed(123)
+
+# Submuestra para elbow
+n_elbow <- min(5000, nrow(cluster_scaled_all))
+idx_elbow <- sample(seq_len(nrow(cluster_scaled_all)), n_elbow)
+cluster_scaled_elbow <- cluster_scaled_all[idx_elbow, , drop = FALSE]
+
+# Submuestra más pequeña para silhouette
+n_sil <- min(2500, nrow(cluster_scaled_all))
+idx_sil <- sample(seq_len(nrow(cluster_scaled_all)), n_sil)
+cluster_scaled_sil <- cluster_scaled_all[idx_sil, , drop = FALSE]
+
+dim(cluster_scaled_elbow)
+dim(cluster_scaled_sil)
+```
+```{r}
+k_grid <- 2:8
+
+wss_tbl <- tibble(
+  k = k_grid,
+  wss = map_dbl(k_grid, function(k) {
+    set.seed(123)
+    kmeans(cluster_scaled_elbow, centers = k, nstart = 10, iter.max = 50)$tot.withinss
+  })
+)
+
+wss_tbl
+```
+
+```{r}
+ggplot(wss_tbl, aes(x = k, y = wss)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = k_grid) +
+  labs(
+    title = "Método Elbow",
+    subtitle = "Selección del número de clusters",
+    x = "Número de clusters (k)",
+    y = "Within-cluster sum of squares"
+  )
+```
+```{r}
+library(cluster)
+
+k_grid <- 2:6
+
+sil_tbl <- map_dfr(k_grid, function(k) {
+  set.seed(123)
+  km_tmp <- kmeans(cluster_scaled_sil, centers = k, nstart = 10, iter.max = 50)
+  
+  sil <- silhouette(km_tmp$cluster, dist(cluster_scaled_sil))
+  
+  tibble(
+    k = k,
+    avg_silhouette = mean(sil[, "sil_width"])
+  )
+})
+
+sil_tbl
+```
+
+```{r}
+ggplot(sil_tbl, aes(x = k, y = avg_silhouette)) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(breaks = k_grid) +
+  labs(
+    title = "Método Silhouette",
+    subtitle = "Selección del número de clusters",
+    x = "Número de clusters (k)",
+    y = "Average silhouette width"
+  )
+```
+```{r}
+k_opt <- 6   
+
+set.seed(123)
+km <- kmeans(cluster_scaled_sample, centers = k_opt, nstart = 25)
+
+cluster_sample_df <- cluster_sample_df %>%
+  mutate(cluster = factor(km$cluster))
+
+table(cluster_sample_df$cluster)
+```
+```{r}
+assign_to_centroids <- function(data_scaled, centers) {
+  dist_mat <- sapply(seq_len(nrow(centers)), function(k) {
+    rowSums((data_scaled - matrix(centers[k, ], nrow = nrow(data_scaled), ncol = ncol(data_scaled), byrow = TRUE))^2)
+  })
+  apply(dist_mat, 1, which.min)
+}
+
+cluster_all <- assign_to_centroids(cluster_scaled_all, km$centers)
+
+listings_clustered <- cluster_base %>%
+  mutate(cluster = factor(cluster_all))
+
+glimpse(listings_clustered)
+```
+```{r}
+cluster_profile_numeric <- listings_clustered %>%
+  group_by(cluster) %>%
+  summarise(
+    n = n(),
+    across(
+      any_of(c("price", cluster_vars_final)),
+      list(
+        media = ~ mean(.x, na.rm = TRUE),
+        mediana = ~ median(.x, na.rm = TRUE)
+      )
+    ),
+    .groups = "drop"
+  )
+
+cluster_profile_numeric
+```
+```{r}
+cluster_summary_short <- listings_clustered %>%
+  group_by(cluster) %>%
+  summarise(
+    n = n(),
+    precio_mediano = median(price, na.rm = TRUE),
+    accommodates_mediano = median(accommodates, na.rm = TRUE),
+    bathrooms_mediano = median(bathrooms, na.rm = TRUE),
+    minimum_nights_mediano = median(minimum_nights, na.rm = TRUE),
+    reviews_mediana = median(number_of_reviews, na.rm = TRUE),
+    rating_mediano = median(review_scores_rating, na.rm = TRUE),
+    availability_365_mediana = median(availability_365, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+cluster_summary_short
+```
+
+```{r}
+pca <- prcomp(cluster_scaled_sample)
+
+pca_df <- as_tibble(pca$x[, 1:2]) %>%
+  mutate(cluster = cluster_sample_df$cluster)
+
+ggplot(pca_df, aes(x = PC1, y = PC2, color = cluster)) +
+  geom_point(alpha = 0.5) +
+  labs(
+    title = "Clusters visualizados con PCA",
+    x = "PC1",
+    y = "PC2"
+  )
+```
+```{r}
+vars_to_plot_cluster <- intersect(
+  c("price", "accommodates", "bathrooms", "minimum_nights", "number_of_reviews", "review_scores_rating"),
+  names(listings_clustered)
+)
+
+listings_clustered %>%
+  select(cluster, all_of(vars_to_plot_cluster)) %>%
+  pivot_longer(cols = -cluster, names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = cluster, y = value, fill = cluster)) +
+  geom_boxplot(outlier.alpha = 0.15) +
+  facet_wrap(~ variable, scales = "free", ncol = 3) +
+  labs(title = "Comparación de variables clave por cluster")
+```
+Para el análisis de segmentación se seleccionaron las variables accommodates, bathrooms, minimum_nights, number_of_reviews, review_scores_rating y availability_365, buscando representar tamaño del alojamiento, nivel de servicio, actividad y disponibilidad, pero evitando incorporar variables altamente redundantes. Esta decisión es consistente con el análisis de correlación previo, donde se observó una fuerte asociación entre variables como beds, bedrooms y accommodates, así como entre distintas medidas de disponibilidad, por lo que no resultaba conveniente incluirlas simultáneamente en el clustering. Posteriormente, se imputaron faltantes con la mediana, se estandarizaron las variables y se aplicó K-means. La elección de 6 clusters se apoyó en el método silhouette, cuyo valor promedio fue mayor para𝑘=6 que para las demás alternativas evaluadas.
+
+La segmentación obtenida muestra que el mercado de propiedades no se divide únicamente en categorías simples como “económicas” o “premium”, sino en seis perfiles diferenciados. En la muestra usada para entrenar el algoritmo, los grupos tuvieron tamaños desiguales, lo que ya sugería una mezcla entre segmentos masivos y segmentos muy específicos. Una vez asignados los clusters al conjunto completo, se observó que los grupos 1 y 5 concentran la mayor parte de las propiedades, con 74,473 y 57,558 registros respectivamente, mientras que los clusters 3 y 6 son mucho más pequeños, con 1,339 y 2,533 observaciones. Esto sugiere que el mercado está dominado por dos segmentos principales y varios subgrupos más especializados o menos frecuentes. 
+
+El cluster 2 representa con claridad el segmento de propiedades de alta capacidad y mayor precio. Este grupo contiene 23,180 observaciones, presenta un precio mediano de 438 y una capacidad promedio de 9.32 huéspedes, muy por encima del resto de los clusters. Además, su precio medio de 1,372 confirma que se trata del segmento más costoso del mercado. En términos de negocio, este grupo puede interpretarse como el de alojamientos grandes, probablemente orientados a familias numerosas, grupos o propiedades premium con mayor espacio y equipamiento. Este hallazgo también es coherente con el análisis anterior, donde accommodates y bathrooms aparecían entre las variables más relacionadas con price.
+
+En contraste, el cluster 4 parece corresponder al segmento más económico o accesible. Aunque no es el grupo más pequeño, sí muestra el precio medio más bajo (165) y una mediana de 137, con una capacidad promedio de 3.42 huéspedes. Esto sugiere un perfil de propiedades relativamente pequeñas o estándar, con menor disposición a cobrar precios altos. Desde una perspectiva de mercado, este cluster puede interpretarse como un grupo de alojamientos funcionales, probablemente orientados a estadías más sencillas o a usuarios con mayor sensibilidad al precio. 
+
+Los clusters 1 y 5 representan el núcleo más amplio del mercado y pueden entenderse como segmentos intermedios o masivos. El cluster 1, con 74,473 observaciones, presenta un precio mediano de 175 y una capacidad promedio de 3.39 huéspedes, mientras que el cluster 5, con 57,558 observaciones, muestra una mediana de 165 y una capacidad promedio de 3.09 huéspedes. Ambos grupos tienen tamaños relativamente similares en términos de capacidad y precios medianos, por lo que probablemente capturan el mercado típico de propiedades de tamaño medio. Sin embargo, la diferencia entre sus precios medios 559 en el cluster 1 frente a 615 en el cluster 5 sugiere que dentro de este segmento intermedio todavía existen subperfiles diferenciados, posiblemente asociados a reputación, disponibilidad anual o volumen de reseñas.
+
+Por su parte, los clusters 3 y 6 parecen corresponder a segmentos más específicos o atípicos. El cluster 3 tiene solo 1,339 propiedades, con una mediana de precio de 200 y capacidad promedio de 3.60 huéspedes, por lo que puede interpretarse como un grupo intermedio, pero menos frecuente y con características particulares que lo separan del mercado masivo. El cluster 6 es especialmente interesante: aunque su mediana de precio es 160, similar a la de los clusters intermedios, su precio medio asciende a 965, lo que evidencia una fuerte influencia de valores extremos. Esto sugiere que en ese grupo conviven propiedades con rasgos estructurales parecidos, pero con algunos anuncios excepcionalmente caros que elevan el promedio. Dado que en el análisis de price ya se había observado una fuerte asimetría y presencia de outliers, en estos clusters resulta más apropiado interpretar la mediana que la media como medida representativa.
+
+En conjunto, el análisis de clustering muestra que la base contiene segmentos bien diferenciados en tamaño, precio y comportamiento operativo, lo cual aporta valor tanto para la interpretación del negocio como para el modelado posterior. En particular, el resultado confirma que no todas las propiedades deben analizarse como una población homogénea: existen grupos claramente premium, grupos económicos, grupos intermedios dominantes y pequeños segmentos atípicos. Esta segmentación puede ser útil en etapas posteriores, ya sea para describir tipos de propiedades, para construir variables derivadas a partir del cluster o incluso para evaluar modelos predictivos diferenciados por segmento.
+
+
+# Ingeniería de características
+```{r}
+listings_fe <- listings_clean
+
+if (exists("listings_clustered")) {
+  if (nrow(listings_clustered) == nrow(listings_fe)) {
+    listings_fe <- listings_fe %>%
+      mutate(cluster = listings_clustered$cluster)
+  }
+}
+```
+
+```{r}
+listings_fe <- listings_clean
+
+if (exists("listings_clustered")) {
+  if (nrow(listings_clustered) == nrow(listings_fe)) {
+    listings_fe <- listings_fe %>%
+      mutate(cluster = listings_clustered$cluster)
+  }
+}
+```
+
+```{r}
+if ("amenities" %in% names(listings_fe)) {
+  listings_fe <- listings_fe %>%
+    mutate(amenity_count = stringr::str_count(as.character(amenities), ",") + 1)
+}
+
+if (all(c("bathrooms", "bedrooms") %in% names(listings_fe))) {
+  listings_fe <- listings_fe %>%
+    mutate(bathrooms_per_bedroom = bathrooms / pmax(bedrooms, 1))
+}
+
+if (all(c("accommodates", "bedrooms") %in% names(listings_fe))) {
+  listings_fe <- listings_fe %>%
+    mutate(guests_per_bedroom = accommodates / pmax(bedrooms, 1))
+}
+```
+
+```{r}
+if ("amenities" %in% names(listings_fe)) {
+  listings_fe <- listings_fe %>%
+    mutate(amenity_count = stringr::str_count(as.character(amenities), ",") + 1)
+}
+
+if (all(c("bathrooms", "bedrooms") %in% names(listings_fe))) {
+  listings_fe <- listings_fe %>%
+    mutate(bathrooms_per_bedroom = bathrooms / pmax(bedrooms, 1))
+}
+
+if (all(c("accommodates", "bedrooms") %in% names(listings_fe))) {
+  listings_fe <- listings_fe %>%
+    mutate(guests_per_bedroom = accommodates / pmax(bedrooms, 1))
+}
+
+if ("room_type" %in% names(listings_fe)) {
+  listings_fe <- listings_fe %>%
+    mutate(
+      is_entire_home = factor(
+        if_else(as.character(room_type) == "Entire home/apt", "Yes", "No"),
+        levels = c("No", "Yes")
+      )
+    )
+}
+
+if ("host_is_superhost" %in% names(listings_fe)) {
+  listings_fe <- listings_fe %>%
+    mutate(
+      superhost_bin = factor(as.character(host_is_superhost), levels = c("No", "Yes"))
+    )
+}
+
+if ("instant_bookable" %in% names(listings_fe)) {
+  listings_fe <- listings_fe %>%
+    mutate(
+      instant_bookable_bin = factor(as.character(instant_bookable), levels = c("No", "Yes"))
+    )
+}
+if (all(c("bedrooms", "bathrooms") %in% names(listings_fe))) {
+  listings_fe <- listings_fe %>%
+    mutate(bedrooms_x_bathrooms = bedrooms * bathrooms)
+}
+
+if (all(c("accommodates", "bathrooms") %in% names(listings_fe))) {
+  listings_fe <- listings_fe %>%
+    mutate(accommodates_x_bathrooms = accommodates * bathrooms)
+}
+```
+
+```{r}
+cat_vars_lump <- intersect(
+  c("property_type", "room_type", "city", "neighbourhood_cleansed"),
+  names(listings_fe)
+)
+
+for (v in cat_vars_lump) {
+  listings_fe[[v]] <- forcats::fct_lump_min(
+    as.factor(listings_fe[[v]]),
+    min = 500,
+    other_level = "Other"
+  )
+}
+```
+
+```{r}
+new_vars_created <- intersect(
+  c("cluster",
+    "host_tenure_days",
+    "days_since_last_review",
+    "amenity_count",
+    "bathrooms_per_bedroom",
+    "guests_per_bedroom",
+    "log_price",
+    "log_minimum_nights",
+    "log_number_of_reviews",
+    "is_entire_home",
+    "superhost_bin",
+    "instant_bookable_bin",
+    "bedrooms_x_bathrooms",
+    "accommodates_x_bathrooms"),
+  names(listings_fe)
+)
+
+new_vars_created
+```
+```{r}
+candidate_new_num <- intersect(
+  c("host_tenure_days",
+    "days_since_last_review",
+    "amenity_count",
+    "bathrooms_per_bedroom",
+    "guests_per_bedroom",
+    "log_minimum_nights",
+    "log_number_of_reviews",
+    "bedrooms_x_bathrooms",
+    "accommodates_x_bathrooms"),
+  names(listings_fe)
+)
+
+feature_corr <- map_dfr(candidate_new_num, function(v) {
+  tmp <- listings_fe %>%
+    select(price, all_of(v)) %>%
+    drop_na()
+  
+  tibble(
+    variable = v,
+    pearson = cor(tmp$price, tmp[[v]], method = "pearson"),
+    spearman = cor(tmp$price, tmp[[v]], method = "spearman")
+  )
+}) %>%
+  arrange(desc(abs(spearman)))
+
+feature_corr
+```
+```{r}
+new_cat_vars <- intersect(
+  c("cluster", "is_entire_home", "superhost_bin", "instant_bookable_bin"),
+  names(listings_fe)
+)
+
+for (v in new_cat_vars) {
+  p <- ggplot(listings_fe, aes(x = .data[[v]], y = price, fill = .data[[v]])) +
+    geom_boxplot(outlier.alpha = 0.15) +
+    labs(title = paste("Price según", v), x = v, y = "Price")
+  
+  print(p)
+}
+```
+```{r}
+exclude_model_vars <- intersect(
+  c(
+    "id", "host_id", "listing_url", "picture_url", "host_url",
+    "host_picture_url", "host_thumbnail_url", "name", "description",
+    "host_about", "neighborhood_overview", "bathrooms_text",
+    "bathrooms_text_num",
+    "host_name", "license", "host_location", "host_neighbourhood",
+    "estimated_revenue_l365d",
+    "estimated_occupancy_l365d"
+  ),
+  names(listings_fe)
+)
+
+exclude_model_vars
+```
+```{r}
+model_data <- listings_fe %>%
+  select(-any_of(exclude_model_vars))
+
+glimpse(model_data)
+```
+# Preguntas de investigación
+
