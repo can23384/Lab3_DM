@@ -117,6 +117,92 @@ summarise_numeric <- function(data, vars) {
 }
 ```
 
+# Descripción de las variables:
+
+| Variable                                       | Tipo                                | Descripción                                                         |
+| ---------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------- |
+| `id`                                           | Cualitativa (identificador)         | Identificador único del anuncio.                                    |
+| `listing_url`                                  | Cualitativa                         | Enlace web del anuncio en Airbnb.                                   |
+| `scrape_id`                                    | Cualitativa (identificador técnico) | Identificador del proceso de extracción de datos.                   |
+| `last_scraped`                                 | Cualitativa temporal                | Fecha en la que el anuncio fue recolectado.                         |
+| `source`                                       | Cualitativa                         | Fuente de extracción del registro.                                  |
+| `name`                                         | Cualitativa                         | Título o nombre del alojamiento.                                    |
+| `description`                                  | Cualitativa                         | Descripción general del alojamiento.                                |
+| `neighborhood_overview`                        | Cualitativa                         | Descripción textual del vecindario.                                 |
+| `picture_url`                                  | Cualitativa                         | Enlace a la imagen principal del anuncio.                           |
+| `host_id`                                      | Cualitativa (identificador)         | Identificador único del anfitrión.                                  |
+| `host_url`                                     | Cualitativa                         | Enlace al perfil del anfitrión.                                     |
+| `host_name`                                    | Cualitativa                         | Nombre del anfitrión.                                               |
+| `host_since`                                   | Cualitativa temporal                | Fecha desde la cual el anfitrión pertenece a la plataforma.         |
+| `host_location`                                | Cualitativa                         | Ubicación declarada por el anfitrión.                               |
+| `host_about`                                   | Cualitativa                         | Biografía o descripción del anfitrión.                              |
+| `host_response_time`                           | Cualitativa ordinal                 | Tiempo típico de respuesta del anfitrión.                           |
+| `host_response_rate`                           | Cuantitativa                        | Porcentaje de mensajes respondidos por el anfitrión.                |
+| `host_acceptance_rate`                         | Cuantitativa                        | Porcentaje de solicitudes aceptadas por el anfitrión.               |
+| `host_is_superhost`                            | Cualitativa binaria                 | Indica si el anfitrión es superhost.                                |
+| `host_thumbnail_url`                           | Cualitativa                         | Enlace a la miniatura de foto de perfil del anfitrión.              |
+| `host_picture_url`                             | Cualitativa                         | Enlace a la foto de perfil del anfitrión.                           |
+| `host_neighbourhood`                           | Cualitativa                         | Vecindario declarado del anfitrión.                                 |
+| `host_listings_count`                          | Cuantitativa discreta               | Número de anuncios activos asociados al anfitrión.                  |
+| `host_total_listings_count`                    | Cuantitativa discreta               | Número total de anuncios del anfitrión.                             |
+| `host_verifications`                           | Cualitativa                         | Medios de verificación del anfitrión.                               |
+| `host_has_profile_pic`                         | Cualitativa binaria                 | Indica si el anfitrión tiene foto de perfil.                        |
+| `host_identity_verified`                       | Cualitativa binaria                 | Indica si la identidad del anfitrión fue verificada.                |
+| `neighbourhood`                                | Cualitativa                         | Descripción textual del vecindario.                                 |
+| `neighbourhood_cleansed`                       | Cualitativa                         | Vecindario o zona depurada/normalizada del anuncio.                 |
+| `neighbourhood_group_cleansed`                 | Cualitativa                         | Agrupación geográfica más amplia del vecindario.                    |
+| `latitude`                                     | Cuantitativa continua               | Latitud geográfica del alojamiento.                                 |
+| `longitude`                                    | Cuantitativa continua               | Longitud geográfica del alojamiento.                                |
+| `property_type`                                | Cualitativa                         | Tipo de propiedad.                                                  |
+| `room_type`                                    | Cualitativa                         | Tipo de habitación ofrecida.                                        |
+| `accommodates`                                 | Cuantitativa discreta               | Número máximo de huéspedes que puede alojar la propiedad.           |
+| `bathrooms`                                    | Cuantitativa continua               | Número de baños.                                                    |
+| `bathrooms_text`                               | Cualitativa                         | Descripción textual de los baños.                                   |
+| `bedrooms`                                     | Cuantitativa discreta               | Número de dormitorios.                                              |
+| `beds`                                         | Cuantitativa discreta               | Número de camas.                                                    |
+| `amenities`                                    | Cualitativa                         | Lista de amenidades ofrecidas por el alojamiento.                   |
+| `price`                                        | Cuantitativa continua               | Precio del alojamiento. Variable objetivo del modelo.               |
+| `minimum_nights`                               | Cuantitativa discreta               | Número mínimo de noches permitidas por reserva.                     |
+| `maximum_nights`                               | Cuantitativa discreta               | Número máximo de noches permitidas por reserva.                     |
+| `minimum_minimum_nights`                       | Cuantitativa discreta               | Valor mínimo observado del mínimo de noches en el periodo reciente. |
+| `maximum_minimum_nights`                       | Cuantitativa discreta               | Valor máximo observado del mínimo de noches en el periodo reciente. |
+| `minimum_maximum_nights`                       | Cuantitativa discreta               | Valor mínimo observado del máximo de noches en el periodo reciente. |
+| `maximum_maximum_nights`                       | Cuantitativa discreta               | Valor máximo observado del máximo de noches en el periodo reciente. |
+| `minimum_nights_avg_ntm`                       | Cuantitativa continua               | Promedio del mínimo de noches en el corto plazo.                    |
+| `maximum_nights_avg_ntm`                       | Cuantitativa continua               | Promedio del máximo de noches en el corto plazo.                    |
+| `calendar_updated`                             | Cualitativa                         | Indicador sobre actualizaciones del calendario.                     |
+| `has_availability`                             | Cualitativa binaria                 | Indica si el alojamiento tiene disponibilidad activa.               |
+| `availability_30`                              | Cuantitativa discreta               | Número de días disponibles en los próximos 30 días.                 |
+| `availability_60`                              | Cuantitativa discreta               | Número de días disponibles en los próximos 60 días.                 |
+| `availability_90`                              | Cuantitativa discreta               | Número de días disponibles en los próximos 90 días.                 |
+| `availability_365`                             | Cuantitativa discreta               | Número de días disponibles en los próximos 365 días.                |
+| `calendar_last_scraped`                        | Cualitativa temporal                | Fecha de la última extracción de información del calendario.        |
+| `number_of_reviews`                            | Cuantitativa discreta               | Número total de reseñas del alojamiento.                            |
+| `number_of_reviews_ltm`                        | Cuantitativa discreta               | Número de reseñas en los últimos 12 meses.                          |
+| `number_of_reviews_l30d`                       | Cuantitativa discreta               | Número de reseñas en los últimos 30 días.                           |
+| `availability_eoy`                             | Cuantitativa discreta               | Disponibilidad estimada hacia el final del año.                     |
+| `number_of_reviews_ly`                         | Cuantitativa discreta               | Número de reseñas en el último año.                                 |
+| `estimated_occupancy_l365d`                    | Cuantitativa discreta               | Ocupación estimada del alojamiento en los últimos 365 días.         |
+| `estimated_revenue_l365d`                      | Cuantitativa continua               | Ingreso estimado del alojamiento en los últimos 365 días.           |
+| `first_review`                                 | Cualitativa temporal                | Fecha de la primera reseña registrada.                              |
+| `last_review`                                  | Cualitativa temporal                | Fecha de la reseña más reciente.                                    |
+| `review_scores_rating`                         | Cuantitativa continua               | Calificación general del alojamiento.                               |
+| `review_scores_accuracy`                       | Cuantitativa continua               | Puntaje de exactitud entre lo ofrecido y lo recibido.               |
+| `review_scores_cleanliness`                    | Cuantitativa continua               | Puntaje de limpieza.                                                |
+| `review_scores_checkin`                        | Cuantitativa continua               | Puntaje del proceso de check-in.                                    |
+| `review_scores_communication`                  | Cuantitativa continua               | Puntaje de comunicación con el anfitrión.                           |
+| `review_scores_location`                       | Cuantitativa continua               | Puntaje de ubicación.                                               |
+| `review_scores_value`                          | Cuantitativa continua               | Puntaje de relación calidad-precio.                                 |
+| `license`                                      | Cualitativa                         | Número o código de licencia del alojamiento.                        |
+| `instant_bookable`                             | Cualitativa binaria                 | Indica si el alojamiento permite reserva inmediata.                 |
+| `calculated_host_listings_count`               | Cuantitativa discreta               | Número de anuncios calculados asociados al anfitrión.               |
+| `calculated_host_listings_count_entire_homes`  | Cuantitativa discreta               | Número de anuncios del anfitrión que son alojamientos completos.    |
+| `calculated_host_listings_count_private_rooms` | Cuantitativa discreta               | Número de anuncios del anfitrión que son habitaciones privadas.     |
+| `calculated_host_listings_count_shared_rooms`  | Cuantitativa discreta               | Número de anuncios del anfitrión que son habitaciones compartidas.  |
+| `reviews_per_month`                            | Cuantitativa continua               | Promedio de reseñas por mes del alojamiento.                        |
+| `city`                                         | Cualitativa                         | Ciudad donde se ubica el alojamiento.                               |
+
+
 
 # Descripción general del dataset
 
