@@ -4,7 +4,6 @@ output: html_document
 date: "2026-03-11"
 ---
 
-# Lab3
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
@@ -116,92 +115,6 @@ summarise_numeric <- function(data, vars) {
   })
 }
 ```
-
-# Descripción de las variables:
-
-| Variable                                       | Tipo                                | Descripción                                                         |
-| ---------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------- |
-| `id`                                           | Cualitativa (identificador)         | Identificador único del anuncio.                                    |
-| `listing_url`                                  | Cualitativa                         | Enlace web del anuncio en Airbnb.                                   |
-| `scrape_id`                                    | Cualitativa (identificador técnico) | Identificador del proceso de extracción de datos.                   |
-| `last_scraped`                                 | Cualitativa temporal                | Fecha en la que el anuncio fue recolectado.                         |
-| `source`                                       | Cualitativa                         | Fuente de extracción del registro.                                  |
-| `name`                                         | Cualitativa                         | Título o nombre del alojamiento.                                    |
-| `description`                                  | Cualitativa                         | Descripción general del alojamiento.                                |
-| `neighborhood_overview`                        | Cualitativa                         | Descripción textual del vecindario.                                 |
-| `picture_url`                                  | Cualitativa                         | Enlace a la imagen principal del anuncio.                           |
-| `host_id`                                      | Cualitativa (identificador)         | Identificador único del anfitrión.                                  |
-| `host_url`                                     | Cualitativa                         | Enlace al perfil del anfitrión.                                     |
-| `host_name`                                    | Cualitativa                         | Nombre del anfitrión.                                               |
-| `host_since`                                   | Cualitativa temporal                | Fecha desde la cual el anfitrión pertenece a la plataforma.         |
-| `host_location`                                | Cualitativa                         | Ubicación declarada por el anfitrión.                               |
-| `host_about`                                   | Cualitativa                         | Biografía o descripción del anfitrión.                              |
-| `host_response_time`                           | Cualitativa ordinal                 | Tiempo típico de respuesta del anfitrión.                           |
-| `host_response_rate`                           | Cuantitativa                        | Porcentaje de mensajes respondidos por el anfitrión.                |
-| `host_acceptance_rate`                         | Cuantitativa                        | Porcentaje de solicitudes aceptadas por el anfitrión.               |
-| `host_is_superhost`                            | Cualitativa binaria                 | Indica si el anfitrión es superhost.                                |
-| `host_thumbnail_url`                           | Cualitativa                         | Enlace a la miniatura de foto de perfil del anfitrión.              |
-| `host_picture_url`                             | Cualitativa                         | Enlace a la foto de perfil del anfitrión.                           |
-| `host_neighbourhood`                           | Cualitativa                         | Vecindario declarado del anfitrión.                                 |
-| `host_listings_count`                          | Cuantitativa discreta               | Número de anuncios activos asociados al anfitrión.                  |
-| `host_total_listings_count`                    | Cuantitativa discreta               | Número total de anuncios del anfitrión.                             |
-| `host_verifications`                           | Cualitativa                         | Medios de verificación del anfitrión.                               |
-| `host_has_profile_pic`                         | Cualitativa binaria                 | Indica si el anfitrión tiene foto de perfil.                        |
-| `host_identity_verified`                       | Cualitativa binaria                 | Indica si la identidad del anfitrión fue verificada.                |
-| `neighbourhood`                                | Cualitativa                         | Descripción textual del vecindario.                                 |
-| `neighbourhood_cleansed`                       | Cualitativa                         | Vecindario o zona depurada/normalizada del anuncio.                 |
-| `neighbourhood_group_cleansed`                 | Cualitativa                         | Agrupación geográfica más amplia del vecindario.                    |
-| `latitude`                                     | Cuantitativa continua               | Latitud geográfica del alojamiento.                                 |
-| `longitude`                                    | Cuantitativa continua               | Longitud geográfica del alojamiento.                                |
-| `property_type`                                | Cualitativa                         | Tipo de propiedad.                                                  |
-| `room_type`                                    | Cualitativa                         | Tipo de habitación ofrecida.                                        |
-| `accommodates`                                 | Cuantitativa discreta               | Número máximo de huéspedes que puede alojar la propiedad.           |
-| `bathrooms`                                    | Cuantitativa continua               | Número de baños.                                                    |
-| `bathrooms_text`                               | Cualitativa                         | Descripción textual de los baños.                                   |
-| `bedrooms`                                     | Cuantitativa discreta               | Número de dormitorios.                                              |
-| `beds`                                         | Cuantitativa discreta               | Número de camas.                                                    |
-| `amenities`                                    | Cualitativa                         | Lista de amenidades ofrecidas por el alojamiento.                   |
-| `price`                                        | Cuantitativa continua               | Precio del alojamiento. Variable objetivo del modelo.               |
-| `minimum_nights`                               | Cuantitativa discreta               | Número mínimo de noches permitidas por reserva.                     |
-| `maximum_nights`                               | Cuantitativa discreta               | Número máximo de noches permitidas por reserva.                     |
-| `minimum_minimum_nights`                       | Cuantitativa discreta               | Valor mínimo observado del mínimo de noches en el periodo reciente. |
-| `maximum_minimum_nights`                       | Cuantitativa discreta               | Valor máximo observado del mínimo de noches en el periodo reciente. |
-| `minimum_maximum_nights`                       | Cuantitativa discreta               | Valor mínimo observado del máximo de noches en el periodo reciente. |
-| `maximum_maximum_nights`                       | Cuantitativa discreta               | Valor máximo observado del máximo de noches en el periodo reciente. |
-| `minimum_nights_avg_ntm`                       | Cuantitativa continua               | Promedio del mínimo de noches en el corto plazo.                    |
-| `maximum_nights_avg_ntm`                       | Cuantitativa continua               | Promedio del máximo de noches en el corto plazo.                    |
-| `calendar_updated`                             | Cualitativa                         | Indicador sobre actualizaciones del calendario.                     |
-| `has_availability`                             | Cualitativa binaria                 | Indica si el alojamiento tiene disponibilidad activa.               |
-| `availability_30`                              | Cuantitativa discreta               | Número de días disponibles en los próximos 30 días.                 |
-| `availability_60`                              | Cuantitativa discreta               | Número de días disponibles en los próximos 60 días.                 |
-| `availability_90`                              | Cuantitativa discreta               | Número de días disponibles en los próximos 90 días.                 |
-| `availability_365`                             | Cuantitativa discreta               | Número de días disponibles en los próximos 365 días.                |
-| `calendar_last_scraped`                        | Cualitativa temporal                | Fecha de la última extracción de información del calendario.        |
-| `number_of_reviews`                            | Cuantitativa discreta               | Número total de reseñas del alojamiento.                            |
-| `number_of_reviews_ltm`                        | Cuantitativa discreta               | Número de reseñas en los últimos 12 meses.                          |
-| `number_of_reviews_l30d`                       | Cuantitativa discreta               | Número de reseñas en los últimos 30 días.                           |
-| `availability_eoy`                             | Cuantitativa discreta               | Disponibilidad estimada hacia el final del año.                     |
-| `number_of_reviews_ly`                         | Cuantitativa discreta               | Número de reseñas en el último año.                                 |
-| `estimated_occupancy_l365d`                    | Cuantitativa discreta               | Ocupación estimada del alojamiento en los últimos 365 días.         |
-| `estimated_revenue_l365d`                      | Cuantitativa continua               | Ingreso estimado del alojamiento en los últimos 365 días.           |
-| `first_review`                                 | Cualitativa temporal                | Fecha de la primera reseña registrada.                              |
-| `last_review`                                  | Cualitativa temporal                | Fecha de la reseña más reciente.                                    |
-| `review_scores_rating`                         | Cuantitativa continua               | Calificación general del alojamiento.                               |
-| `review_scores_accuracy`                       | Cuantitativa continua               | Puntaje de exactitud entre lo ofrecido y lo recibido.               |
-| `review_scores_cleanliness`                    | Cuantitativa continua               | Puntaje de limpieza.                                                |
-| `review_scores_checkin`                        | Cuantitativa continua               | Puntaje del proceso de check-in.                                    |
-| `review_scores_communication`                  | Cuantitativa continua               | Puntaje de comunicación con el anfitrión.                           |
-| `review_scores_location`                       | Cuantitativa continua               | Puntaje de ubicación.                                               |
-| `review_scores_value`                          | Cuantitativa continua               | Puntaje de relación calidad-precio.                                 |
-| `license`                                      | Cualitativa                         | Número o código de licencia del alojamiento.                        |
-| `instant_bookable`                             | Cualitativa binaria                 | Indica si el alojamiento permite reserva inmediata.                 |
-| `calculated_host_listings_count`               | Cuantitativa discreta               | Número de anuncios calculados asociados al anfitrión.               |
-| `calculated_host_listings_count_entire_homes`  | Cuantitativa discreta               | Número de anuncios del anfitrión que son alojamientos completos.    |
-| `calculated_host_listings_count_private_rooms` | Cuantitativa discreta               | Número de anuncios del anfitrión que son habitaciones privadas.     |
-| `calculated_host_listings_count_shared_rooms`  | Cuantitativa discreta               | Número de anuncios del anfitrión que son habitaciones compartidas.  |
-| `reviews_per_month`                            | Cuantitativa continua               | Promedio de reseñas por mes del alojamiento.                        |
-| `city`                                         | Cualitativa                         | Ciudad donde se ubica el alojamiento.                               |
-
 
 
 # Descripción general del dataset
@@ -407,6 +320,7 @@ plot_sample %>%
         axis.ticks.y = element_blank()) +
   labs(title = "Boxplots de variables numéricas")
 ```
+
 El análisis univariado de las variables numéricas muestra que muchas de ellas presentan distribuciones claramente asimétricas y con presencia de valores extremos. Variables como number_of_reviews, host_listings_count, host_total_listings_count y varios conteos calculados de propiedades exhiben medianas bajas y máximos muy altos, lo que sugiere una fuerte concentración de observaciones en valores pequeños y una cola derecha larga. Esta situación es consistente con un mercado donde la mayoría de los anfitriones poseen pocas propiedades, mientras que un grupo reducido concentra una gran cantidad de anuncios. 
 
 En las gráficas de histogramas y boxplots también se observa que variables como accommodates, bedrooms, beds, minimum_nights y availability_365 presentan distribuciones no normales, con acumulación en pocos valores frecuentes y numerosos outliers. Esto sugiere que, de cara al modelo, convendrá evaluar transformaciones o tratamientos robustos para variables particularmente sesgadas. También se evidencia que las variables relacionadas con reseñas y ocupación no se distribuyen de forma homogénea, sino que presentan una fuerte concentración cerca de cero, algo esperable en plataformas donde muchos anuncios tienen poca actividad reciente.
@@ -524,6 +438,8 @@ logprice_sample <- sample(logprice_sample, size = min(5000, length(logprice_samp
 qqnorm(logprice_sample, main = "QQ-plot de log(price)")
 qqline(logprice_sample, col = 2)
 ```
+
+
 La variable objetivo price presenta una distribución fuertemente asimétrica a la derecha. Sobre las observaciones con precio disponible (75,426 registros), la media es 691, mientras que la mediana es 191, lo que revela una marcada influencia de valores extremos altos. Además, el precio mínimo observado es 8, el percentil 99 es 8,853 y el máximo alcanza 50,123, confirmando la existencia de alojamientos extraordinariamente caros en comparación con el grueso de la muestra. El coeficiente de asimetría de price es 10.6, lo que indica una distribución muy alejada de la normalidad. 
 
 
@@ -577,6 +493,7 @@ num_price_sample %>%
   facet_wrap(~ variable, scales = "free_x", ncol = 3) +
   labs(title = "Relación de variables numéricas con price")
 ```
+
 El análisis de correlación entre variables numéricas y price muestra que las asociaciones más claras aparecen en variables vinculadas al tamaño y capacidad del alojamiento. En particular, las mayores correlaciones de Spearman corresponden a accommodates (0.596), bathrooms (0.522), beds (0.514) y bedrooms (0.508). Esto sugiere que, en términos generales, a mayor capacidad del alojamiento y mayor número de habitaciones o baños, mayor tiende a ser el precio. Estas variables aparecen como candidatas naturales para el modelo predictivo, tanto por su interpretación de negocio como por su asociación empírica con la variable respuesta.
 
 Por otro lado, variables relacionadas con reseñas y actividad reciente presentan asociaciones débiles o moderadas, e incluso negativas, como ocurre con reviews_per_month, number_of_reviews, number_of_reviews_ltm y estimated_occupancy_l365d. Una posible interpretación es que los alojamientos más caros no necesariamente son los más frecuentes o los más demandados dentro de la plataforma. Asimismo, el hecho de que varias correlaciones de Pearson sean bastante menores que las de Spearman sugiere que la relación entre precio y estas variables no es estrictamente lineal y está influida por la asimetría y los outliers del precio.
@@ -633,6 +550,7 @@ plot_box_cat_price <- function(var, top_n = 10) {
 
 walk(candidate_cat, ~ print(plot_box_cat_price(.x, top_n = 10)))
 ```
+
 Las variables categóricas también muestran diferencias relevantes en los niveles de precio. En city, por ejemplo, se observan medianas y medias distintas entre mercados: Hawaii y Rhode Island presentan precios más altos que Austin, Texas o Washington, D.C., lo que sugiere un efecto importante de la localización geográfica sobre la variable respuesta. Este resultado es coherente con la idea de que el precio no depende únicamente de las características físicas del alojamiento, sino también del mercado local en el que compite. 
 
 En property_type, los alojamientos completos como Entire home y Entire condo muestran valores medianos superiores a los tipos compartidos o privados. De manera similar, en room_type se aprecia que Entire home/apt tiende a ubicarse por encima de Private room y Shared room, lo que confirma que el nivel de privacidad y uso exclusivo del espacio influye de manera importante en el precio. Estas diferencias hacen pensar que variables categóricas como city, property_type y room_type serán determinantes en el modelo final. 
@@ -724,6 +642,7 @@ if (length(vif_vars) >= 2) {
   vif_tbl
 }
 ```
+
 La matriz de correlación entre variables numéricas revela bloques claros de variables redundantes. El primer bloque aparece en las variables de disponibilidad: availability_90 y availability_60 presentan una correlación de 0.971, mientras que availability_60 y availability_30 alcanzan 0.926. Esto indica que estas variables contienen información muy similar y, en un modelo predictivo, probablemente no sea necesario incluirlas simultáneamente. Un segundo bloque importante aparece en las variables de tamaño del alojamiento: beds y accommodates tienen correlación de 0.814, bedrooms y accommodates de 0.782, y beds y bedrooms de 0.764. Estas relaciones sugieren redundancia parcial entre características que describen la capacidad del alojamiento.
 
 También se observa una alta relación entre métricas de actividad o reseñas, particularmente entre reviews_per_month y number_of_reviews_ltm con una correlación de 0.872. En general, estos resultados muestran que varias variables capturan dimensiones similares del fenómeno, por lo que será importante seleccionar una representación parsimoniosa al construir el modelo. Desde el punto de vista del EDA, este hallazgo es útil porque permite justificar por qué algunas variables podrían excluirse o resumirse en etapas posteriores.
@@ -947,6 +866,7 @@ listings_clustered %>%
   facet_wrap(~ variable, scales = "free", ncol = 3) +
   labs(title = "Comparación de variables clave por cluster")
 ```
+
 Para el análisis de segmentación se seleccionaron las variables accommodates, bathrooms, minimum_nights, number_of_reviews, review_scores_rating y availability_365, buscando representar tamaño del alojamiento, nivel de servicio, actividad y disponibilidad, pero evitando incorporar variables altamente redundantes. Esta decisión es consistente con el análisis de correlación previo, donde se observó una fuerte asociación entre variables como beds, bedrooms y accommodates, así como entre distintas medidas de disponibilidad, por lo que no resultaba conveniente incluirlas simultáneamente en el clustering. Posteriormente, se imputaron faltantes con la mediana, se estandarizaron las variables y se aplicó K-means. La elección de 6 clusters se apoyó en el método silhouette, cuyo valor promedio fue mayor para𝑘=6 que para las demás alternativas evaluadas.
 
 La segmentación obtenida muestra que el mercado de propiedades no se divide únicamente en categorías simples como “económicas” o “premium”, sino en seis perfiles diferenciados. En la muestra usada para entrenar el algoritmo, los grupos tuvieron tamaños desiguales, lo que ya sugería una mezcla entre segmentos masivos y segmentos muy específicos. Una vez asignados los clusters al conjunto completo, se observó que los grupos 1 y 5 concentran la mayor parte de las propiedades, con 74,473 y 57,558 registros respectivamente, mientras que los clusters 3 y 6 son mucho más pequeños, con 1,339 y 2,533 observaciones. Esto sugiere que el mercado está dominado por dos segmentos principales y varios subgrupos más especializados o menos frecuentes. 
@@ -960,6 +880,19 @@ Los clusters 1 y 5 representan el núcleo más amplio del mercado y pueden enten
 Por su parte, los clusters 3 y 6 parecen corresponder a segmentos más específicos o atípicos. El cluster 3 tiene solo 1,339 propiedades, con una mediana de precio de 200 y capacidad promedio de 3.60 huéspedes, por lo que puede interpretarse como un grupo intermedio, pero menos frecuente y con características particulares que lo separan del mercado masivo. El cluster 6 es especialmente interesante: aunque su mediana de precio es 160, similar a la de los clusters intermedios, su precio medio asciende a 965, lo que evidencia una fuerte influencia de valores extremos. Esto sugiere que en ese grupo conviven propiedades con rasgos estructurales parecidos, pero con algunos anuncios excepcionalmente caros que elevan el promedio. Dado que en el análisis de price ya se había observado una fuerte asimetría y presencia de outliers, en estos clusters resulta más apropiado interpretar la mediana que la media como medida representativa.
 
 En conjunto, el análisis de clustering muestra que la base contiene segmentos bien diferenciados en tamaño, precio y comportamiento operativo, lo cual aporta valor tanto para la interpretación del negocio como para el modelado posterior. En particular, el resultado confirma que no todas las propiedades deben analizarse como una población homogénea: existen grupos claramente premium, grupos económicos, grupos intermedios dominantes y pequeños segmentos atípicos. Esta segmentación puede ser útil en etapas posteriores, ya sea para describir tipos de propiedades, para construir variables derivadas a partir del cluster o incluso para evaluar modelos predictivos diferenciados por segmento.
+
+# Preguntas de investigación
+## 1. ¿Cómo está distribuido el precio de las propiedades?
+
+El precio de las propiedades presenta una distribución fuertemente asimétrica a la derecha. Sobre las observaciones con precio disponible, la media es 691, mientras que la mediana es 191, lo que muestra una clara influencia de valores extremos altos. Además, el precio máximo alcanza 50,123 y el percentil 99 es 8,853, confirmando que existe un grupo reducido de propiedades extraordinariamente costosas en comparación con el resto del mercado. La transformación log(price) mejora sustancialmente la forma de la distribución, reduciendo la asimetría de 10.6 a 1.74, por lo que resulta una alternativa más adecuada para el modelado.
+
+## 2. ¿Qué variables numéricas parecen relacionarse más con el precio?
+
+Las variables numéricas con relación más clara con price son principalmente las asociadas al tamaño y capacidad del alojamiento. Las mayores correlaciones de Spearman corresponden a accommodates (0.596), bathrooms (0.522), beds (0.514) y bedrooms (0.508). Esto sugiere que, en general, propiedades con mayor capacidad, más dormitorios y más baños tienden a tener precios más altos. Entre las variables creadas en la ingeniería de características, destacan aún más accommodates_x_bathrooms (0.608) y bedrooms_x_bathrooms (0.531), lo que refuerza la idea de que la combinación entre capacidad y nivel de infraestructura es especialmente informativa para predecir el precio.
+
+## 3. ¿Qué categorías presentan diferencias claras en precio?
+
+Las diferencias más marcadas se observan en variables de ubicación y tipo de alojamiento. En city, mercados como Hawaii y Rhode Island presentan precios medianos más altos que ciudades como Austin, Texas o Washington, D.C.. En property_type, categorías como Entire home y Entire condo muestran precios superiores frente a opciones privadas o compartidas. Del mismo modo, en room_type, la categoría Entire home/apt se ubica claramente por encima de Private room y Shared room. Esto indica que el precio depende no solo del tamaño del alojamiento, sino también de su nivel de privacidad y del mercado local donde se encuentra.
 
 
 # Ingeniería de características
@@ -1153,5 +1086,100 @@ model_data <- listings_fe %>%
 
 glimpse(model_data)
 ```
-# Preguntas de investigación
+
+La etapa de ingeniería de características se orientó a construir variables más informativas y cercanas a la lógica del negocio, pero evitando introducir fuga de información hacia la variable objetivo. En esta fase se incorporó la variable cluster obtenida en la segmentación previa, junto con nuevas variables derivadas de la estructura del alojamiento como bathrooms_per_bedroom, guests_per_bedroom, bedrooms_x_bathrooms y accommodates_x_bathrooms. Además, se generaron variables categóricas binarias como is_entire_home, superhost_bin e instant_bookable_bin, y se mantuvo log_price como transformación de la respuesta para fines de modelado. En la práctica, no todas las variables inicialmente planteadas pudieron construirse o conservarse, pero las que sí quedaron disponibles representan bien las dimensiones de tamaño, capacidad, tipo de alojamiento y segmentación del mercado.
+
+Entre las nuevas variables numéricas, las que muestran mayor relación con el precio son claramente las interacciones asociadas al tamaño del alojamiento. La variable accommodates_x_bathrooms presenta la mayor asociación con price, con una correlación de Spearman de 0.608, seguida de bedrooms_x_bathrooms con 0.531. Estos resultados indican que combinar capacidad con número de baños, o dormitorios con baños, captura mejor la complejidad del alojamiento que considerar cada variable por separado. En otras palabras, no solo importa cuántas personas puede alojar una propiedad, sino también cómo se combina esa capacidad con el nivel de comodidad o infraestructura disponible. Por el contrario, guests_per_bedroom presenta una relación mucho más débil con el precio (0.191), mientras que bathrooms_per_bedroom incluso muestra una asociación negativa leve (-0.123), por lo que estas variables parecen menos prometedoras como predictores principales.
+
+Desde el punto de vista del modelado, estos resultados sugieren que las variables de interacción pueden aportar valor adicional frente a las variables originales, especialmente porque resumen mejor el tamaño efectivo y el nivel de servicio del alojamiento. En particular, accommodates_x_bathrooms y bedrooms_x_bathrooms se perfilan como candidatas fuertes para el modelo de regresión. No obstante, como ya se detectó multicolinealidad moderada entre accommodates, bedrooms y beds, será importante evaluar cuidadosamente si conviene conservar simultáneamente las variables originales y sus interacciones, o seleccionar una combinación más parsimoniosa.
+
+Las nuevas variables categóricas también tienen potencial explicativo. La inclusión de cluster es especialmente valiosa porque sintetiza patrones complejos ya identificados en la segmentación del mercado, distinguiendo grupos premium, económicos, intermedios y atípicos. De forma similar, is_entire_home resume de manera más compacta la información contenida en room_type, mientras que superhost_bin e instant_bookable_bin permiten representar de forma simple características operativas del anfitrión y del proceso de reserva. En conjunto, esta etapa muestra que la ingeniería de características no solo mejora la representación de los datos, sino que también ayuda a traducir hallazgos del EDA en variables más interpretables y potencialmente más útiles para la predicción.
+
+Finalmente, esta sección permite justificar que el modelo no debe construirse únicamente con variables originales “crudas”. Las variables transformadas y de interacción capturan relaciones no lineales o combinadas que no siempre aparecen con claridad en el análisis simple. Al mismo tiempo, la ingeniería de características reafirma que deben excluirse del modelo variables con alto riesgo de fuga de información o redundancia excesiva, como estimated_revenue_l365d, y que la selección final de predictores debe buscar equilibrio entre poder predictivo, interpretabilidad y estabilidad estadística.
+
+
+
+
+# Partición reproducible de entrenamiento y prueba
+```{r}
+set.seed(123)
+
+model_base <- listings_fe %>%
+  select(price, log_price, accommodates, accommodates_x_bathrooms) %>%
+  drop_na()
+
+n <- nrow(model_base)
+train_id <- sample(seq_len(n), size = floor(0.80 * n))
+
+train_data <- model_base[train_id, ]
+test_data  <- model_base[-train_id, ]
+
+dim(train_data)
+dim(test_data)
+
+```
+Con el fin de garantizar la reproducibilidad de los resultados, se fijó una semilla aleatoria antes de dividir la base en conjuntos de entrenamiento y prueba. De esta forma, cada vez que se ejecute el código, la partición será exactamente la misma. Esto es importante para que los resultados del modelo, las métricas de evaluación y las predicciones sean comparables entre distintas ejecuciones y entre distintos integrantes del curso. La partición se realizó en proporción 80/20, asignando 80% de los datos al entrenamiento y 20% a la validación. Dado que el precio presenta una asimetría fuerte, el modelo univariado se ajusta sobre log_price, aunque las predicciones pueden volver a expresarse en la escala original de price.
+
+# Modelo univariado de regresión lineal
+Para el modelo univariado se seleccionó la variable accommodates, ya que fue la variable original con mayor asociación monotónica con el precio dentro del análisis exploratorio. Además, su interpretación es directa: representa la capacidad máxima de huéspedes que puede alojar la propiedad, una característica estrechamente relacionada con el tamaño y, por tanto, con el valor esperado del anuncio. Aunque variables derivadas como accommodates_x_bathrooms mostraron una asociación incluso mayor, se eligió accommodates porque resulta más simple de interpretar y es adecuada para un primer modelo univariado.
+
+Dado que la variable price presenta una distribución fuertemente sesgada a la derecha, el modelo se ajustó sobre log_price en lugar de price directamente. Esta decisión se basa en que la transformación logarítmica redujo considerablemente la asimetría observada en la variable respuesta, mejorando la adecuación de los supuestos del modelo lineal y haciendo más estable la relación con la variable explicativa.
+
+```{r}
+lm_uni <- lm(log_price ~ accommodates, data = train_data)
+
+summary(lm_uni)
+```
+```{r}
+# Residuos y valores ajustados
+augment_uni <- broom::augment(lm_uni)
+
+# Gráfico residuos vs ajustados
+ggplot(augment_uni, aes(x = .fitted, y = .resid)) +
+  geom_point(alpha = 0.2) +
+  geom_hline(yintercept = 0, linetype = 2, color = "red") +
+  labs(
+    title = "Residuos vs valores ajustados",
+    x = "Valores ajustados",
+    y = "Residuos"
+  )
+
+# QQ-plot de residuos
+ggplot(augment_uni, aes(sample = .std.resid)) +
+  stat_qq(alpha = 0.2) +
+  stat_qq_line(color = "red") +
+  labs(title = "QQ-plot de residuos estandarizados")
+```
+
+```{r}
+test_pred <- test_data %>%
+  mutate(
+    pred_log_price = predict(lm_uni, newdata = test_data),
+    pred_price = exp(pred_log_price)
+  )
+
+# Métricas en escala original
+rmse <- sqrt(mean((test_pred$price - test_pred$pred_price)^2, na.rm = TRUE))
+mae  <- mean(abs(test_pred$price - test_pred$pred_price), na.rm = TRUE)
+
+tibble(
+  RMSE = rmse,
+  MAE = mae
+)
+```
+```{r}
+test_pred %>%
+  select(price, pred_price, accommodates) %>%
+  slice_head(n = 10)
+```
+```{r}
+ggplot(test_pred, aes(x = price, y = pred_price)) +
+  geom_point(alpha = 0.15) +
+  geom_abline(slope = 1, intercept = 0, linetype = 2, color = "red") +
+  labs(
+    title = "Precio real vs precio predicho",
+    x = "Precio real",
+    y = "Precio predicho"
+  )
+```
 
