@@ -1191,7 +1191,7 @@ ggplot(test_pred, aes(x = price, y = pred_price)) +
 En el conjunto de prueba, el modelo obtuvo un RMSE de 3908 y un MAE de 532 en la escala original del precio. Estos errores son relativamente altos frente a la mediana del precio observada en el EDA, lo que sugiere que un modelo basado únicamente en accommodates no es suficiente para lograr predicciones precisas. El gráfico de precio real versus precio predicho también confirma esta limitación: las predicciones se concentran en un rango relativamente estrecho y el modelo tiende a subestimar propiedades muy caras y a sobreestimar algunas propiedades baratas, un comportamiento típico cuando se usa una sola variable explicativa en un problema altamente heterogéneo. Aun así, los resultados muestran que accommodates sí aporta información útil, por lo que constituye una base válida para avanzar hacia modelos multivariados que incorporen variables adicionales como bathrooms, room_type, property_type, city, cluster y algunas interacciones ya identificadas como prometedoras.
 
 
-# 9:
+# 9 Análisis del modelo: multicolinealidad, correlación, ajuste y sobreajuste:
 
 ```{r}
 library(dplyr)
@@ -1341,3 +1341,131 @@ ggplot(test_pred_full, aes(x = price, y = pred_price)) +
   )
 ```
 El modelo lineal múltiple para log_price resulta globalmente significativo y presenta un ajuste moderado, con R^2 ajustado de 0.4879, por lo que explica cerca del 48.8% de la variabilidad del precio en escala logarítmica. En cuanto a multicolinealidad, aunque existe correlación relativamente alta entre las variables asociadas al tamaño y capacidad del alojamiento —especialmente accommodates, bedrooms, beds y bathrooms (correlaciones entre 0.67 y 0.85)—, los valores de VIF/GVIF ajustado se mantienen en rangos aceptables, con un máximo cercano a 2.33, por lo que no se observa multicolinealidad severa. El análisis drop1() muestra que todas las variables aportan significativamente al modelo, destacándose por su contribución city, room_type, bathrooms y accommodates. Respecto al ajuste, los gráficos de residuos indican que el modelo capta razonablemente la tendencia general de los datos, aunque no de forma perfecta: se observan ciertos outliers, colas pesadas y algo de heterocedasticidad, por lo que no se cumplen completamente los supuestos clásicos de normalidad y varianza constante. Sin embargo, al comparar métricas de entrenamiento y prueba no hay evidencia de sobreajuste, ya que los errores son prácticamente iguales en ambos conjuntos (RMSE_log: 0.6008 en train vs. 0.5972 en test; MAE_log: 0.4154 vs. 0.4137), e incluso el desempeño en test es levemente mejor. En consecuencia, el modelo no presenta overfitting y no es necesario construir otro para corregirlo, aunque podría refinarse para mejorar el tratamiento de valores extremos y la dispersión residual.
+
+
+# 10 Modelo corregido si hay multicolinealidad o sobreajuste:
+
+En esta sección se comparan dos especificaciones del modelo lineal: un modelo completo y un modelo reducido. El modelo reducido elimina la variable beds, ya que presenta solapamiento con otras variables asociadas al tamaño del alojamiento, como accommodates y bedrooms. El objetivo es evaluar si un modelo más parsimonioso mantiene una capacidad predictiva similar.
+```{r}
+lm_full <- lm(
+  log_price ~ accommodates + bedrooms + beds + bathrooms +
+    log_minimum_nights + review_scores_rating +
+    room_type + city + instant_bookable_bin,
+  data = train_mv
+)
+lm_red <- lm(
+  log_price ~ accommodates + bedrooms + bathrooms +
+    log_minimum_nights + review_scores_rating +
+    room_type + city + instant_bookable_bin,
+  data = train_mv
+)
+
+summary(lm_red)
+
+```
+
+
+A continuación, se calculan métricas de desempeño para comparar ambos modelos en los conjuntos de entrenamiento y prueba. Se utilizan RMSE y MAE tanto en escala logarítmica como en escala original del precio, con el fin de verificar si el modelo reducido conserva una precisión similar y si existe evidencia de sobreajuste.
+```{r}
+eval_model <- function(model, data, split_name, model_name) {
+  pred_log <- predict(model, newdata = data)
+  pred_price <- exp(pred_log)
+
+  tibble(
+    model = model_name,
+    split = split_name,
+    RMSE_log = sqrt(mean((data$log_price - pred_log)^2, na.rm = TRUE)),
+    MAE_log = mean(abs(data$log_price - pred_log), na.rm = TRUE),
+    RMSE_price = sqrt(mean((data$price - pred_price)^2, na.rm = TRUE)),
+    MAE_price = mean(abs(data$price - pred_price), na.rm = TRUE)
+  )
+}
+
+metrics_compare <- bind_rows(
+  eval_model(lm_full, train_mv, "train", "completo"),
+  eval_model(lm_full, test_mv,  "test",  "completo"),
+  eval_model(lm_red,  train_mv, "train", "reducido"),
+  eval_model(lm_red,  test_mv,  "test",  "reducido")
+)
+
+metrics_compare
+```
+
+
+En este bloque se evalúa la multicolinealidad de los modelos mediante el factor de inflación de la varianza (VIF). Para variables categóricas se utiliza el GVIF ajustado. Esta comparación permite verificar si el modelo reducido disminuye la dependencia lineal entre predictores sin afectar de manera importante el ajuste.
+```{r}
+get_vif_table <- function(model) {
+  vif_raw <- car::vif(model)
+
+  if (is.matrix(vif_raw)) {
+    as_tibble(vif_raw, rownames = "variable") %>%
+      mutate(VIF_ajustado = GVIF^(1 / (2 * Df))) %>%
+      arrange(desc(VIF_ajustado))
+  } else {
+    tibble(variable = names(vif_raw), VIF = as.numeric(vif_raw)) %>%
+      arrange(desc(VIF))
+  }
+}
+
+vif_full_tbl <- get_vif_table(lm_full)
+vif_red_tbl  <- get_vif_table(lm_red)
+
+vif_full_tbl
+vif_red_tbl
+```
+
+
+Seguidamente, se realiza un análisis gráfico de residuos para evaluar la calidad del modelo reducido. Se examinan los residuos frente a los valores ajustados, la normalidad mediante QQ-plot, la distribución de residuos estandarizados y la posible heterocedasticidad con el gráfico Scale-Location. Estos gráficos permiten revisar si los supuestos del modelo lineal se cumplen razonablemente.
+```{r}
+aug_red <- broom::augment(lm_red)
+
+# 1. Residuos vs ajustados
+ggplot(aug_red, aes(x = .fitted, y = .resid)) +
+  geom_point(alpha = 0.20) +
+  geom_hline(yintercept = 0, linetype = 2, color = "red") +
+  labs(
+    title = "Residuos vs ajustados - modelo reducido",
+    x = "Valores ajustados",
+    y = "Residuos"
+  )
+
+# 2. QQ-plot
+ggplot(aug_red, aes(sample = .std.resid)) +
+  stat_qq(alpha = 0.20) +
+  stat_qq_line(color = "red") +
+  labs(title = "QQ-plot de residuos - modelo reducido")
+
+# 3. Histograma de residuos estandarizados
+ggplot(aug_red, aes(x = .std.resid)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Histograma de residuos estandarizados - modelo reducido")
+
+# 4. Scale-Location
+ggplot(aug_red, aes(x = .fitted, y = sqrt(abs(.std.resid)))) +
+  geom_point(alpha = 0.20) +
+  geom_smooth(se = FALSE) +
+  labs(
+    title = "Scale-Location - modelo reducido",
+    x = "Valores ajustados",
+    y = "sqrt(|residuo estandarizado|)"
+  )
+```
+```{r}
+test_pred_red <- test_mv %>%
+  mutate(
+    pred_log_price = predict(lm_red, newdata = test_mv),
+    pred_price = exp(pred_log_price)
+  )
+
+ggplot(test_pred_red, aes(x = price, y = pred_price)) +
+  geom_point(alpha = 0.15) +
+  geom_abline(slope = 1, intercept = 0, linetype = 2, color = "red") +
+  labs(
+    title = "Precio real vs predicho - modelo reducido",
+    x = "Precio real",
+    y = "Precio predicho"
+  )
+```
+
+Para reducir la colinealidad moderada observada entre accommodates, bedrooms y beds, se estimó un modelo reducido eliminando beds. Este nuevo modelo mantiene solo las variables más relevantes para predecir el precio y conserva un desempeño muy similar al modelo completo, con R^2 ajustado de 0.4864 y métricas de entrenamiento y prueba casi iguales, por lo que no presenta evidencia de sobreajuste. Además, los VIF ajustados permanecen en valores bajos, lo que confirma que la multicolinealidad no es severa. El análisis gráfico de residuos muestra que, aunque los residuos están centrados alrededor de cero, existen outliers, colas pesadas y cierta heterocedasticidad, por lo que el ajuste es razonable pero no perfecto. El modelo predice adecuadamente la mayoría de los precios, aunque pierde precisión en propiedades con precios extremadamente altos. Por ello, el modelo reducido se considera una mejor alternativa por ser más parsimonioso e interpretable sin sacrificar capacidad predictiva.
+
