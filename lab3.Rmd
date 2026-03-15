@@ -14,6 +14,10 @@ knitr::opts_chunk$set(
 ```
 
 
+# Link de GitHub:
+https://github.com/can23384/Lab3_DM
+
+
 ```{r}
 required_pkgs <- c(
   "tidyverse", "janitor", "skimr", "naniar", "GGally",
