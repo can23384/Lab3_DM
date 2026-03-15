@@ -1189,3 +1189,155 @@ ggplot(test_pred, aes(x = price, y = pred_price)) +
   )
 ```
 En el conjunto de prueba, el modelo obtuvo un RMSE de 3908 y un MAE de 532 en la escala original del precio. Estos errores son relativamente altos frente a la mediana del precio observada en el EDA, lo que sugiere que un modelo basado únicamente en accommodates no es suficiente para lograr predicciones precisas. El gráfico de precio real versus precio predicho también confirma esta limitación: las predicciones se concentran en un rango relativamente estrecho y el modelo tiende a subestimar propiedades muy caras y a sobreestimar algunas propiedades baratas, un comportamiento típico cuando se usa una sola variable explicativa en un problema altamente heterogéneo. Aun así, los resultados muestran que accommodates sí aporta información útil, por lo que constituye una base válida para avanzar hacia modelos multivariados que incorporen variables adicionales como bathrooms, room_type, property_type, city, cluster y algunas interacciones ya identificadas como prometedoras.
+
+
+# 9:
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+if (!"minimum_nights" %in% names(listings_fe)) {
+  stop("La columna 'minimum_nights' no existe en listings_fe")
+}
+
+model_base_mv <- listings_fe %>%
+  mutate(
+    room_type = as.factor(room_type),
+    city = as.factor(city),
+    instant_bookable_bin = as.factor(instant_bookable_bin),
+    log_minimum_nights = log1p(minimum_nights)
+  ) %>%
+  select(
+    price, log_price,
+    accommodates, bedrooms, beds, bathrooms,
+    log_minimum_nights, review_scores_rating,
+    room_type, city, instant_bookable_bin
+  ) %>%
+  drop_na()
+
+set.seed(123)
+n_mv <- nrow(model_base_mv)
+train_id_mv <- sample(seq_len(n_mv), size = floor(0.80 * n_mv))
+
+train_mv <- model_base_mv[train_id_mv, ]
+test_mv  <- model_base_mv[-train_id_mv, ]
+
+lm_full <- lm(
+  log_price ~ accommodates + bedrooms + beds + bathrooms +
+    log_minimum_nights + review_scores_rating +
+    room_type + city + instant_bookable_bin,
+  data = train_mv
+)
+
+summary(lm_full)
+```
+# Multicolinealidad
+```{r}
+vif_full_raw <- car::vif(lm_full)
+
+vif_full <- if (is.matrix(vif_full_raw)) {
+  as_tibble(vif_full_raw, rownames = "variable") %>%
+    mutate(GVIF_ajustado = GVIF^(1 / (2 * Df))) %>%
+    arrange(desc(GVIF_ajustado))
+} else {
+  tibble(variable = names(vif_full_raw), VIF = as.numeric(vif_full_raw)) %>%
+    arrange(desc(VIF))
+}
+
+vif_full
+```
+# Variables que aportan al modelo
+
+```{r}
+drop1(lm_full, test = "F")
+
+```
+#  Correlación entre las características del modelo
+
+```{r}
+num_model_vars <- train_mv %>%
+  select(accommodates, bedrooms, beds, bathrooms,
+         log_minimum_nights, review_scores_rating)
+
+cor_mat_mv <- cor(num_model_vars, use = "pairwise.complete.obs")
+cor_mat_mv
+```
+
+```{r}
+corrplot::corrplot(
+  cor_mat_mv,
+  method = "color",
+  type = "upper",
+  tl.cex = 0.8,
+  number.cex = 0.7
+)
+```
+
+
+# Métricas train/test para detectar sobreajuste
+
+```{r}
+eval_model <- function(model, data, split_name) {
+  pred_log <- predict(model, newdata = data)
+  pred_price <- exp(pred_log)
+  
+  tibble(
+    split = split_name,
+    RMSE_log = sqrt(mean((data$log_price - pred_log)^2, na.rm = TRUE)),
+    MAE_log  = mean(abs(data$log_price - pred_log), na.rm = TRUE),
+    RMSE_price = sqrt(mean((data$price - pred_price)^2, na.rm = TRUE)),
+    MAE_price  = mean(abs(data$price - pred_price), na.rm = TRUE))
+}
+
+metrics_full <- bind_rows(
+  eval_model(lm_full, train_mv, "train"),
+  eval_model(lm_full, test_mv, "test")
+)
+
+metrics_full
+```
+
+# Análisis de residuos del modelo inicial
+
+```{r}
+aug_full <- broom::augment(lm_full)
+
+ggplot(aug_full, aes(x = .fitted, y = .resid)) +
+  geom_point(alpha = 0.2) +
+  geom_hline(yintercept = 0, linetype = 2, color = "red") +
+  labs(
+    title = "Residuos vs ajustados - modelo inicial",
+    x = "Valores ajustados",
+    y = "Residuos"
+  )
+```
+
+```{r}
+ggplot(aug_full, aes(sample = .std.resid)) +
+  stat_qq(alpha = 0.2) +
+  stat_qq_line(color = "red") +
+  labs(title = "QQ-plot de residuos - modelo inicial")
+```
+```{r}
+ggplot(aug_full, aes(x = .std.resid)) +
+  geom_histogram(bins = 40) +
+  labs(title = "Histograma de residuos estandarizados - modelo inicial")
+```
+```{r}
+test_pred_full <- test_mv %>%
+  mutate(
+    pred_log_price = predict(lm_full, newdata = test_mv),
+    pred_price = exp(pred_log_price)
+  )
+
+ggplot(test_pred_full, aes(x = price, y = pred_price)) +
+  geom_point(alpha = 0.15) +
+  geom_abline(slope = 1, intercept = 0, linetype = 2, color = "red") +
+  labs(
+    title = "Precio real vs predicho - modelo inicial",
+    x = "Precio real",
+    y = "Precio predicho"
+  )
+```
+El modelo lineal múltiple para log_price resulta globalmente significativo y presenta un ajuste moderado, con R^2 ajustado de 0.4879, por lo que explica cerca del 48.8% de la variabilidad del precio en escala logarítmica. En cuanto a multicolinealidad, aunque existe correlación relativamente alta entre las variables asociadas al tamaño y capacidad del alojamiento —especialmente accommodates, bedrooms, beds y bathrooms (correlaciones entre 0.67 y 0.85)—, los valores de VIF/GVIF ajustado se mantienen en rangos aceptables, con un máximo cercano a 2.33, por lo que no se observa multicolinealidad severa. El análisis drop1() muestra que todas las variables aportan significativamente al modelo, destacándose por su contribución city, room_type, bathrooms y accommodates. Respecto al ajuste, los gráficos de residuos indican que el modelo capta razonablemente la tendencia general de los datos, aunque no de forma perfecta: se observan ciertos outliers, colas pesadas y algo de heterocedasticidad, por lo que no se cumplen completamente los supuestos clásicos de normalidad y varianza constante. Sin embargo, al comparar métricas de entrenamiento y prueba no hay evidencia de sobreajuste, ya que los errores son prácticamente iguales en ambos conjuntos (RMSE_log: 0.6008 en train vs. 0.5972 en test; MAE_log: 0.4154 vs. 0.4137), e incluso el desempeño en test es levemente mejor. En consecuencia, el modelo no presenta overfitting y no es necesario construir otro para corregirlo, aunque podría refinarse para mejorar el tratamiento de valores extremos y la dispersión residual.
