@@ -964,7 +964,12 @@ if ("room_type" %in% names(listings_fe)) {
 if ("host_is_superhost" %in% names(listings_fe)) {
   listings_fe <- listings_fe %>%
     mutate(
-      superhost_bin = factor(as.character(host_is_superhost), levels = c("No", "Yes"))
+      superhost_bin = case_when(
+        as.character(host_is_superhost) %in% c("t", "T", "Yes", "YES", "yes", "true", "TRUE") ~ "Yes",
+        as.character(host_is_superhost) %in% c("f", "F", "No", "NO", "no", "false", "FALSE") ~ "No",
+        TRUE ~ NA_character_
+      ),
+      superhost_bin = factor(superhost_bin, levels = c("No", "Yes"))
     )
 }
 
@@ -1087,15 +1092,7 @@ model_data <- listings_fe %>%
 glimpse(model_data)
 ```
 
-La etapa de ingeniería de características se orientó a construir variables más informativas y cercanas a la lógica del negocio, pero evitando introducir fuga de información hacia la variable objetivo. En esta fase se incorporó la variable cluster obtenida en la segmentación previa, junto con nuevas variables derivadas de la estructura del alojamiento como bathrooms_per_bedroom, guests_per_bedroom, bedrooms_x_bathrooms y accommodates_x_bathrooms. Además, se generaron variables categóricas binarias como is_entire_home, superhost_bin e instant_bookable_bin, y se mantuvo log_price como transformación de la respuesta para fines de modelado. En la práctica, no todas las variables inicialmente planteadas pudieron construirse o conservarse, pero las que sí quedaron disponibles representan bien las dimensiones de tamaño, capacidad, tipo de alojamiento y segmentación del mercado.
-
-Entre las nuevas variables numéricas, las que muestran mayor relación con el precio son claramente las interacciones asociadas al tamaño del alojamiento. La variable accommodates_x_bathrooms presenta la mayor asociación con price, con una correlación de Spearman de 0.608, seguida de bedrooms_x_bathrooms con 0.531. Estos resultados indican que combinar capacidad con número de baños, o dormitorios con baños, captura mejor la complejidad del alojamiento que considerar cada variable por separado. En otras palabras, no solo importa cuántas personas puede alojar una propiedad, sino también cómo se combina esa capacidad con el nivel de comodidad o infraestructura disponible. Por el contrario, guests_per_bedroom presenta una relación mucho más débil con el precio (0.191), mientras que bathrooms_per_bedroom incluso muestra una asociación negativa leve (-0.123), por lo que estas variables parecen menos prometedoras como predictores principales.
-
-Desde el punto de vista del modelado, estos resultados sugieren que las variables de interacción pueden aportar valor adicional frente a las variables originales, especialmente porque resumen mejor el tamaño efectivo y el nivel de servicio del alojamiento. En particular, accommodates_x_bathrooms y bedrooms_x_bathrooms se perfilan como candidatas fuertes para el modelo de regresión. No obstante, como ya se detectó multicolinealidad moderada entre accommodates, bedrooms y beds, será importante evaluar cuidadosamente si conviene conservar simultáneamente las variables originales y sus interacciones, o seleccionar una combinación más parsimoniosa.
-
-Las nuevas variables categóricas también tienen potencial explicativo. La inclusión de cluster es especialmente valiosa porque sintetiza patrones complejos ya identificados en la segmentación del mercado, distinguiendo grupos premium, económicos, intermedios y atípicos. De forma similar, is_entire_home resume de manera más compacta la información contenida en room_type, mientras que superhost_bin e instant_bookable_bin permiten representar de forma simple características operativas del anfitrión y del proceso de reserva. En conjunto, esta etapa muestra que la ingeniería de características no solo mejora la representación de los datos, sino que también ayuda a traducir hallazgos del EDA en variables más interpretables y potencialmente más útiles para la predicción.
-
-Finalmente, esta sección permite justificar que el modelo no debe construirse únicamente con variables originales “crudas”. Las variables transformadas y de interacción capturan relaciones no lineales o combinadas que no siempre aparecen con claridad en el análisis simple. Al mismo tiempo, la ingeniería de características reafirma que deben excluirse del modelo variables con alto riesgo de fuga de información o redundancia excesiva, como estimated_revenue_l365d, y que la selección final de predictores debe buscar equilibrio entre poder predictivo, interpretabilidad y estabilidad estadística.
+La ingeniería de características realizada es consistente con los hallazgos del análisis exploratorio y se integra adecuadamente con las etapas posteriores de partición y modelado. En particular, se incorporaron variables derivadas que resumen mejor el tamaño efectivo y la estructura del alojamiento, como bedrooms_x_bathrooms y accommodates_x_bathrooms, además de variables categóricas compactas como is_entire_home y cluster. Entre las nuevas variables numéricas, las más prometedoras fueron accommodates_x_bathrooms y bedrooms_x_bathrooms, con correlaciones de Spearman de 0.608 y 0.531 respectivamente, superiores incluso a varias variables originales. Esto respalda la idea de que el precio no depende únicamente de la capacidad o del número de habitaciones por separado, sino de la combinación entre capacidad y nivel de infraestructura del alojamiento. En cambio, variables como guests_per_bedroom y bathrooms_per_bedroom mostraron relaciones mucho más débiles con el precio, por lo que parecen menos útiles como predictores principales. También se justificó excluir variables con alta cardinalidad, redundancia o posible fuga de información, como bathrooms_text_num, license, host_location, host_neighbourhood, estimated_revenue_l365d y estimated_occupancy_l365d. En conjunto, esta etapa deja una base coherente para el modelado, priorizando variables interpretables, informativas y estadísticamente más estables.
 
 
 
@@ -1105,7 +1102,7 @@ Finalmente, esta sección permite justificar que el modelo no debe construirse �
 set.seed(123)
 
 model_base <- listings_fe %>%
-  select(price, log_price, accommodates, accommodates_x_bathrooms) %>%
+  select(price, log_price, accommodates) %>%
   drop_na()
 
 n <- nrow(model_base)
@@ -1118,7 +1115,7 @@ dim(train_data)
 dim(test_data)
 
 ```
-Con el fin de garantizar la reproducibilidad de los resultados, se fijó una semilla aleatoria antes de dividir la base en conjuntos de entrenamiento y prueba. De esta forma, cada vez que se ejecute el código, la partición será exactamente la misma. Esto es importante para que los resultados del modelo, las métricas de evaluación y las predicciones sean comparables entre distintas ejecuciones y entre distintos integrantes del curso. La partición se realizó en proporción 80/20, asignando 80% de los datos al entrenamiento y 20% a la validación. Dado que el precio presenta una asimetría fuerte, el modelo univariado se ajusta sobre log_price, aunque las predicciones pueden volver a expresarse en la escala original de price.
+La partición entre entrenamiento y prueba quedó correctamente planteada como un procedimiento reproducible, ya que se fijó la semilla aleatoria con set.seed(123) antes de generar la muestra. Esto garantiza que la selección de observaciones será siempre la misma en cada ejecución del código, permitiendo replicar exactamente los resultados del modelo y sus métricas. En tu salida, el subconjunto utilizado para modelar quedó dividido en 60,329 observaciones de entrenamiento y 15,083 observaciones de prueba, lo que corresponde aproximadamente a una partición 80/20. Esta estrategia es adecuada porque separa claramente el ajuste del modelo de su evaluación, evitando medir el desempeño sobre los mismos datos con los que fue entrenado. Como además el modelo se ajusta sobre log_price, la partición es coherente con la necesidad de trabajar con una versión más estable de la variable respuesta, dado el fuerte sesgo que presentaba price en la escala original.
 
 # Modelo univariado de regresión lineal
 Para el modelo univariado se seleccionó la variable accommodates, ya que fue la variable original con mayor asociación monotónica con el precio dentro del análisis exploratorio. Además, su interpretación es directa: representa la capacidad máxima de huéspedes que puede alojar la propiedad, una característica estrechamente relacionada con el tamaño y, por tanto, con el valor esperado del anuncio. Aunque variables derivadas como accommodates_x_bathrooms mostraron una asociación incluso mayor, se eligió accommodates porque resulta más simple de interpretar y es adecuada para un primer modelo univariado.
@@ -1130,6 +1127,9 @@ lm_uni <- lm(log_price ~ accommodates, data = train_data)
 
 summary(lm_uni)
 ```
+El modelo ajustado fue log_price ~ accommodates y sus resultados muestran una relación positiva, estadísticamente significativa y de magnitud relevante entre la capacidad del alojamiento y el precio transformado. El coeficiente estimado para accommodates fue 0.1702 con un valor-p prácticamente nulo, lo que indica que el efecto es altamente significativo. En términos interpretativos, esto implica que, manteniendo lo demás constante dentro de este modelo simple, cada huésped adicional de capacidad se asocia con un aumento aproximado de 18.6% en el precio esperado en escala original, ya que. El modelo alcanza un 
+, lo que significa que accommodates por sí sola explica alrededor del 27.3% de la variabilidad de log_price. Para un modelo univariado, este resultado es razonable y confirma que la capacidad del alojamiento contiene señal predictiva importante, aunque deja claro que aún queda una proporción considerable de variabilidad sin explicar por variables como ubicación, tipo de propiedad, calificaciones y segmento de mercado.
+
 ```{r}
 # Residuos y valores ajustados
 augment_uni <- broom::augment(lm_uni)
@@ -1150,6 +1150,8 @@ ggplot(augment_uni, aes(sample = .std.resid)) +
   stat_qq_line(color = "red") +
   labs(title = "QQ-plot de residuos estandarizados")
 ```
+
+El análisis de residuos muestra que el modelo mejora respecto a trabajar con price en escala original, pero todavía no cumple perfectamente todos los supuestos clásicos de la regresión lineal. En el gráfico de residuos contra valores ajustados se observa una dispersión relativamente centrada en cero, pero con patrones de variabilidad no completamente homogéneos y presencia de residuos extremos. Además, el QQ-plot evidencia desviaciones claras en las colas, lo que indica que los residuos no siguen una distribución normal estricta. Esto era esperable, dado que el mercado de alojamientos presenta una fuerte heterogeneidad, valores atípicos muy altos y segmentos distintos de propiedades. En consecuencia, el modelo univariado puede considerarse útil como una primera aproximación explicativa, pero no como un modelo final suficiente para capturar toda la complejidad del precio
 
 ```{r}
 test_pred <- test_data %>%
@@ -1182,4 +1184,4 @@ ggplot(test_pred, aes(x = price, y = pred_price)) +
     y = "Precio predicho"
   )
 ```
-
+En el conjunto de prueba, el modelo obtuvo un RMSE de 3908 y un MAE de 532 en la escala original del precio. Estos errores son relativamente altos frente a la mediana del precio observada en el EDA, lo que sugiere que un modelo basado únicamente en accommodates no es suficiente para lograr predicciones precisas. El gráfico de precio real versus precio predicho también confirma esta limitación: las predicciones se concentran en un rango relativamente estrecho y el modelo tiende a subestimar propiedades muy caras y a sobreestimar algunas propiedades baratas, un comportamiento típico cuando se usa una sola variable explicativa en un problema altamente heterogéneo. Aun así, los resultados muestran que accommodates sí aporta información útil, por lo que constituye una base válida para avanzar hacia modelos multivariados que incorporen variables adicionales como bathrooms, room_type, property_type, city, cluster y algunas interacciones ya identificadas como prometedoras.
