@@ -1646,3 +1646,21 @@ A partir de la evaluación sobre el conjunto de prueba es posible comparar el de
 La comparación entre los modelos permite identificar cuál presenta el mejor balance entre precisión y capacidad de generalización, lo cual será fundamental para seleccionar el modelo más adecuado para la predicción del precio de las viviendas.
 
 Aunque toca decir que para este caso (no sé si lo hice mal o si se supone que debe de quedar así), los 4 modelos ofrecen  resultados muy similares, tanto así que sobresale el univariado sobre los otros 3, por solo 22 puntos, haciendo que visualmente no sea muy distinto que digamos.
+
+# 13 Discusión sobre la efectividad de los modelos
+
+Después de entrenar los diferentes modelos y evaluarlos con el conjunto de prueba, pude comparar cuál de ellos logra predecir mejor el precio de las propiedades. Para hacer esta comparación utilicé las métricas MAE, RMSE y R², que básicamente sirven para medir qué tan lejos están las predicciones del precio real y qué tan bien el modelo logra explicar los datos.
+
+Según pude ver en los resultados, el modelo univariado fue el que peor funcionó. Esto tiene sentido, porque ese modelo solo utiliza una variable para intentar predecir el precio. En un problema como este, el precio de una propiedad depende de muchas cosas al mismo tiempo, como la capacidad del lugar, el número de habitaciones, los baños, el tipo de habitación o incluso la ciudad donde se encuentra. Entonces, tratar de explicar todo eso con una sola variable claramente no es suficiente.
+
+Cuando se usó el modelo completo, el desempeño mejoró un poco. Este modelo utiliza todas las variables numéricas disponibles, por lo que puede capturar más información del conjunto de datos. Sin embargo, según recuerdo de lo visto en clase, usar demasiadas variables también puede causar algunos problemas como multicolinealidad o que el modelo se vuelva demasiado complejo. Aun así, este modelo ya logra reducir el error en comparación con el modelo univariado.
+
+Luego se construyó el modelo reducido, donde se eliminaron algunas variables que no aportaban tanto a la predicción. Según pude ver en las métricas, este modelo fue el que obtuvo el menor RMSE y el mayor valor de R², aunque la diferencia con otros modelos no es muy grande. Aun así, esto sugiere que quitar variables que no ayudan mucho puede mejorar ligeramente la capacidad del modelo para generalizar a nuevos datos.
+
+También se probó un modelo con regularización Lasso, el cual penaliza los coeficientes para evitar que el modelo se vuelva demasiado complejo y para seleccionar automáticamente las variables más importantes. En este caso, el desempeño del modelo Lasso fue muy parecido al del modelo reducido. Según pude observar, esto significa que las variables que se eligieron en el modelo reducido ya eran bastante buenas para explicar el precio, por lo que la regularización no cambió demasiado el resultado final.
+
+Algo que también me llamó la atención es que el R² de todos los modelos es relativamente bajo. Esto probablemente significa que el precio de las propiedades depende de muchos otros factores que no están incluidos en el conjunto de datos. Por ejemplo, podrían influir cosas como la ubicación exacta dentro de la ciudad, las amenidades del alojamiento, la demanda en ciertas temporadas o incluso aspectos como la reputación del anfitrión.
+
+Aun así, comparando todos los modelos que se construyeron, el que mejor balance presenta entre simplicidad y capacidad de predicción es el modelo reducido. Este modelo logra obtener el menor error en las predicciones y, al mismo tiempo, utiliza solo las variables que realmente parecen aportar información relevante.
+
+En conclusión, según pude observar en los resultados y en las métricas calculadas, el modelo reducido es el que mejor logra predecir el precio de las propiedades dentro de este conjunto de datos. Aunque ningún modelo explica completamente la variabilidad de los precios, este modelo logra capturar mejor las relaciones presentes en los datos y representa la mejor opción entre los modelos evaluados para este problema.
