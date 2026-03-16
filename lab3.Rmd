@@ -1563,3 +1563,86 @@ El modelo con regularización permite controlar la magnitud de los coeficientes 
 Los resultados del modelo Lasso muestran que varias variables mantienen coeficientes distintos de cero, lo cual indica que siguen siendo relevantes para explicar el precio de las propiedades. Entre las variables con mayor influencia se encuentran bathrooms, review_scores_rating y algunas categorías de room_type, lo que sugiere que tanto las características físicas de la propiedad como su tipo influyen significativamente en el precio. Asimismo, algunas ciudades presentan coeficientes iguales a cero, lo cual indica que el proceso de regularización eliminó esas variables del modelo por no aportar suficiente capacidad predictiva.
 
 En la gráfica de comparación entre el precio real y el precio predicho se observa que el modelo logra capturar adecuadamente la tendencia general de los precios más bajos, donde se concentra la mayor parte de las observaciones. Sin embargo, para propiedades con precios muy altos el modelo presenta mayores desviaciones respecto a la línea ideal de predicción, lo cual sugiere que la estimación de valores extremos sigue siendo más difícil. En general, el modelo con regularización permite reducir la complejidad del modelo y seleccionar variables relevantes, ofreciendo una alternativa más robusta frente a posibles problemas de multicolinealidad presentes en los modelos lineales tradicionales.
+
+# 12 Evaluación de los modelos con el conjunto de prueba
+
+Para determinar qué tan bien generalizan los modelos construidos, se evalúa su desempeño utilizando el conjunto de prueba. De esta forma es posible medir la capacidad real de predicción de cada modelo sobre datos que no fueron utilizados durante el entrenamiento.
+
+Para evaluar los modelos se utilizan tres métricas comunes en problemas de regresión:
+
+MAE (Mean Absolute Error): mide el error promedio absoluto entre valores reales y predichos.
+
+RMSE (Root Mean Squared Error): penaliza más los errores grandes.
+
+R²: indica qué proporción de la variabilidad del precio es explicada por el modelo.
+
+Evaluar modelos
+
+```{r}
+eval_model <- function(real, pred) {
+  
+  mae <- mean(abs(real - pred))
+  rmse <- sqrt(mean((real - pred)^2))
+  r2 <- cor(real, pred)^2
+  
+  return(c(MAE = mae, RMSE = rmse, R2 = r2))
+}
+```
+
+Predicciones de los modelos en el conjunto de prueba
+
+```{r}
+# modelo univariado
+pred_uni <- exp(predict(lm_uni, newdata = test_mv))
+
+# modelo con todas las variables
+pred_full <- exp(predict(lm_full, newdata = test_mv))
+
+# modelo reducido
+pred_red <- exp(predict(lm_red, newdata = test_mv))
+
+# modelo Lasso
+pred_lasso <- as.numeric(pred_price_lasso)
+
+real_price <- exp(test_mv$log_price)
+```
+
+Evaluación de cada uno de los modelos que acabo de crear
+
+```{r}
+results_uni <- eval_model(real_price, pred_uni)
+results_full <- eval_model(real_price, pred_full)
+results_red <- eval_model(real_price, pred_red)
+results_lasso <- eval_model(real_price, pred_lasso)
+```
+
+Tabla comparativa con el desempeño
+
+```{r}
+results_table <- data.frame(
+  Modelo = c("Univariado", "Modelo completo", "Modelo reducido", "Lasso"),
+  MAE = c(results_uni["MAE"], results_full["MAE"], results_red["MAE"], results_lasso["MAE"]),
+  RMSE = c(results_uni["RMSE"], results_full["RMSE"], results_red["RMSE"], results_lasso["RMSE"]),
+  R2 = c(results_uni["R2"], results_full["R2"], results_red["R2"], results_lasso["R2"])
+)
+
+results_table
+```
+
+Ahora toca la comparación gráfica
+
+```{r}
+ggplot(results_table, aes(x = Modelo, y = RMSE)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Comparación del error RMSE entre modelos",
+    x = "Modelo",
+    y = "RMSE"
+  )
+```
+
+A partir de la evaluación sobre el conjunto de prueba es posible comparar el desempeño de los distintos modelos construidos. El MAE y el RMSE permiten observar el nivel de error promedio de las predicciones, mientras que el R² muestra qué tan bien cada modelo logra explicar la variabilidad del precio de las propiedades.
+
+La comparación entre los modelos permite identificar cuál presenta el mejor balance entre precisión y capacidad de generalización, lo cual será fundamental para seleccionar el modelo más adecuado para la predicción del precio de las viviendas.
+
+Aunque toca decir que para este caso (no sé si lo hice mal o si se supone que debe de quedar así), los 4 modelos ofrecen  resultados muy similares, tanto así que sobresale el univariado sobre los otros 3, por solo 22 puntos, haciendo que visualmente no sea muy distinto que digamos.
