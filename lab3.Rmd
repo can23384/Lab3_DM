@@ -736,7 +736,6 @@ wss_tbl <- tibble(
 
 wss_tbl
 ```
-
 ```{r}
 ggplot(wss_tbl, aes(x = k, y = wss)) +
   geom_line() +
@@ -768,7 +767,6 @@ sil_tbl <- map_dfr(k_grid, function(k) {
 
 sil_tbl
 ```
-
 ```{r}
 ggplot(sil_tbl, aes(x = k, y = avg_silhouette)) +
   geom_line() +
@@ -841,7 +839,6 @@ cluster_summary_short <- listings_clustered %>%
 
 cluster_summary_short
 ```
-
 ```{r}
 pca <- prcomp(cluster_scaled_sample)
 
@@ -921,7 +918,6 @@ if (exists("listings_clustered")) {
   }
 }
 ```
-
 ```{r}
 if ("amenities" %in% names(listings_fe)) {
   listings_fe <- listings_fe %>%
@@ -938,7 +934,6 @@ if (all(c("accommodates", "bedrooms") %in% names(listings_fe))) {
     mutate(guests_per_bedroom = accommodates / pmax(bedrooms, 1))
 }
 ```
-
 ```{r}
 if ("amenities" %in% names(listings_fe)) {
   listings_fe <- listings_fe %>%
@@ -993,7 +988,6 @@ if (all(c("accommodates", "bathrooms") %in% names(listings_fe))) {
     mutate(accommodates_x_bathrooms = accommodates * bathrooms)
 }
 ```
-
 ```{r}
 cat_vars_lump <- intersect(
   c("property_type", "room_type", "city", "neighbourhood_cleansed"),
@@ -1008,7 +1002,6 @@ for (v in cat_vars_lump) {
   )
 }
 ```
-
 ```{r}
 new_vars_created <- intersect(
   c("cluster",
@@ -1469,3 +1462,104 @@ ggplot(test_pred_red, aes(x = price, y = pred_price)) +
 
 Para reducir la colinealidad moderada observada entre accommodates, bedrooms y beds, se estimó un modelo reducido eliminando beds. Este nuevo modelo mantiene solo las variables más relevantes para predecir el precio y conserva un desempeño muy similar al modelo completo, con R^2 ajustado de 0.4864 y métricas de entrenamiento y prueba casi iguales, por lo que no presenta evidencia de sobreajuste. Además, los VIF ajustados permanecen en valores bajos, lo que confirma que la multicolinealidad no es severa. El análisis gráfico de residuos muestra que, aunque los residuos están centrados alrededor de cero, existen outliers, colas pesadas y cierta heterocedasticidad, por lo que el ajuste es razonable pero no perfecto. El modelo predice adecuadamente la mayoría de los precios, aunque pierde precisión en propiedades con precios extremadamente altos. Por ello, el modelo reducido se considera una mejor alternativa por ser más parsimonioso e interpretable sin sacrificar capacidad predictiva.
 
+# 11 Modelo con regularización
+
+Para complementar los modelos lineales anteriores, se construye un modelo de regresión con regularización utilizando Lasso. Este tipo de modelo introduce una penalización sobre los coeficientes que permite reducir la complejidad del modelo y seleccionar automáticamente las variables más relevantes para la predicción del precio.
+
+```{r}
+library(glmnet)
+```
+
+Preparación de los datos para regularización
+
+Los modelos de regularización requieren que las variables predictoras se representen en forma de matriz numérica.
+
+```{r}
+x_train <- model.matrix(
+  log_price ~ accommodates + bedrooms + bathrooms +
+    log_minimum_nights + review_scores_rating +
+    room_type + city + instant_bookable_bin,
+  data = train_mv
+)[, -1]
+
+y_train <- train_mv$log_price
+
+x_test <- model.matrix(
+  log_price ~ accommodates + bedrooms + bathrooms +
+    log_minimum_nights + review_scores_rating +
+    room_type + city + instant_bookable_bin,
+  data = test_mv
+)[, -1]
+
+y_test <- test_mv$log_price
+```
+
+Selección del parámetro de regularización
+
+Se utiliza validación cruzada para encontrar el valor óptimo del parámetro de penalización λ.
+
+```{r}
+set.seed(123)
+
+cv_lasso <- cv.glmnet(
+  x_train,
+  y_train,
+  alpha = 1
+)
+
+best_lambda <- cv_lasso$lambda.min
+best_lambda
+
+plot(cv_lasso)
+```
+
+Ajuste del modelo
+```{r}
+lasso_model <- glmnet(
+  x_train,
+  y_train,
+  alpha = 1,
+  lambda = best_lambda
+)
+
+coef(lasso_model)
+```
+
+Los coeficientes distintos de cero indican las variables que el modelo considera más relevantes para predecir el precio del alojamiento.
+
+Predicciones
+
+```{r}
+pred_log_lasso <- predict(
+  lasso_model,
+  s = best_lambda,
+  newx = x_test
+)
+
+pred_price_lasso <- exp(pred_log_lasso)
+real_price <- exp(y_test)
+```
+
+Comparaciones entre el precio real y el predicho
+
+```{r}
+lasso_results <- data.frame(
+  real_price = real_price,
+  pred_price = as.numeric(pred_price_lasso)
+)
+
+ggplot(lasso_results, aes(x = real_price, y = pred_price)) +
+  geom_point(alpha = 0.15) +
+  geom_abline(slope = 1, intercept = 0, linetype = 2, color = "red") +
+  labs(
+    title = "Precio real vs predicho - modelo Lasso",
+    x = "Precio real",
+    y = "Precio predicho"
+  )
+```
+
+El modelo con regularización permite controlar la magnitud de los coeficientes mediante una penalización que favorece soluciones más parsimoniosas. Esto puede ayudar a reducir el impacto de correlaciones entre variables predictoras y mejorar la estabilidad del modelo al predecir precios en nuevos datos.
+
+Los resultados del modelo Lasso muestran que varias variables mantienen coeficientes distintos de cero, lo cual indica que siguen siendo relevantes para explicar el precio de las propiedades. Entre las variables con mayor influencia se encuentran bathrooms, review_scores_rating y algunas categorías de room_type, lo que sugiere que tanto las características físicas de la propiedad como su tipo influyen significativamente en el precio. Asimismo, algunas ciudades presentan coeficientes iguales a cero, lo cual indica que el proceso de regularización eliminó esas variables del modelo por no aportar suficiente capacidad predictiva.
+
+En la gráfica de comparación entre el precio real y el precio predicho se observa que el modelo logra capturar adecuadamente la tendencia general de los precios más bajos, donde se concentra la mayor parte de las observaciones. Sin embargo, para propiedades con precios muy altos el modelo presenta mayores desviaciones respecto a la línea ideal de predicción, lo cual sugiere que la estimación de valores extremos sigue siendo más difícil. En general, el modelo con regularización permite reducir la complejidad del modelo y seleccionar variables relevantes, ofreciendo una alternativa más robusta frente a posibles problemas de multicolinealidad presentes en los modelos lineales tradicionales.
